@@ -1,0 +1,26 @@
+# Large folders - do not push
+MOT17/
+check_vids/
+yolov8m.pt
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+venv/
+.env
+
+# Output folders (large video files)
+backend/output/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
