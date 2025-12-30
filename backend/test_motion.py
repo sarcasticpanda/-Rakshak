@@ -134,8 +134,8 @@ def main():
     print("Detecting speed, direction, acceleration, panic")
     print("=" * 70)
     
-    # Test on test3.mp4
-    video_path = Path(r"C:\Users\Lunar Panda\3-Main\stampede\-Rakshak\check_vids\test3.mp4")
+    # Test on REAL STAMPEDE video
+    video_path = Path(r"C:\Users\Lunar Panda\3-Main\stampede\-Rakshak\check_vids\stampede.mp4")
     
     if not video_path.exists():
         print(f"❌ Video not found: {video_path}")
@@ -168,7 +168,7 @@ def main():
     print(f"   FPS: {fps}, Frames: {total_frames}")
     
     # Output video
-    output_path = output_dir / "test3_motion.mp4"
+    output_path = output_dir / "stampede_real_motion.mp4"
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
     

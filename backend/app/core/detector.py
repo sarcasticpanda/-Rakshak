@@ -56,12 +56,13 @@ class PersonDetector:
         if VERBOSE:
             print(f"[PersonDetector] Model loaded successfully")
     
-    def detect(self, frame: np.ndarray) -> List[dict]:
+    def detect(self, frame: np.ndarray, adaptive: bool = True) -> List[dict]:
         """
-        Detect people in frame with advanced filtering for Indian crowds
+        Detect people in frame with adaptive density-based filtering
         
         Args:
             frame: Input BGR image
+            adaptive: If True, automatically detect density and adjust settings
         
         Returns:
             List of detections, each dict contains:
@@ -73,20 +74,59 @@ class PersonDetector:
         if frame is None:
             return []
         
-        # Run YOLO with original frame - YOLO handles resizing internally
-        # DO NOT resize frame manually - it destroys small people!
-        # iou=0.35 for aggressive NMS (fixes sparse duplicates, keeps dense detection)
-        results = self.model.predict(
+        # Step 1: Initial detection to determine density
+        frame_h, frame_w = frame.shape[:2]
+        frame_area = frame_h * frame_w
+        
+        initial_results = self.model.predict(
             source=frame,
-            conf=self.conf_threshold,  # 0.01 for dense crowds (200-400 people)
-            iou=self.iou_threshold,    # 0.35 = aggressive NMS (suppress 35%+ overlap)
-            classes=[0],     # Person class only (includes heads, partial bodies)
-            max_det=1500,    # Allow up to 1500 detections
-            imgsz=1920,      # YOLO resizes internally to this
-            half=True,       # FP16 for speed
+            conf=self.conf_threshold,
+            iou=self.iou_threshold,
+            classes=[0],
+            max_det=1500,
+            imgsz=1920,
+            half=True,
             device=self.model.device,
             verbose=False
         )
+        
+        # Count initial detections
+        initial_count = len(initial_results[0].boxes) if initial_results else 0
+        
+        # Calculate density: people per 100k pixels
+        density = (initial_count / frame_area) * 100000
+        
+        # Determine if scene is DENSE or SPARSE
+        # Dense: > 5 people per 100k pixels (e.g., 46+ people in 1280x720)
+        # Sparse: <= 5 people per 100k pixels
+        is_dense = density > 5.0
+        
+        if adaptive and is_dense:
+            # DENSE STAMPEDE MODE: More aggressive detection
+            results = self.model.predict(
+                source=frame,
+                conf=0.01,          # Very low confidence for packed crowds
+                iou=0.25,           # Lower IoU to allow more overlapping detections
+                classes=[0],
+                max_det=2000,       # Increase max detections
+                imgsz=1920,
+                half=True,
+                device=self.model.device,
+                verbose=False
+            )
+        else:
+            # SPARSE MODE: Conservative settings (avoid double boxes)
+            results = self.model.predict(
+                source=frame,
+                conf=self.conf_threshold,  # 0.02 - normal confidence
+                iou=self.iou_threshold,    # 0.35 - aggressive NMS to prevent duplicates
+                classes=[0],
+                max_det=1500,
+                imgsz=1920,
+                half=True,
+                device=self.model.device,
+                verbose=False
+            )
         
         detections = []
         
@@ -115,9 +155,15 @@ class PersonDetector:
                     
                     aspect_ratio = height / width
                     
-                    # Reject if aspect ratio suggests vehicle (wide/flat shape)
-                    if aspect_ratio < MIN_PERSON_ASPECT_RATIO or aspect_ratio > MAX_PERSON_ASPECT_RATIO:
-                        continue
+                    # For DENSE mode: Relax aspect ratio (people compressed/overlapping)
+                    if adaptive and is_dense:
+                        # Allow wider range for packed crowds
+                        if aspect_ratio < 0.6 or aspect_ratio > 4.0:
+                            continue
+                    else:
+                        # Normal mode: Strict aspect ratio for sparse scenes
+                        if aspect_ratio < MIN_PERSON_ASPECT_RATIO or aspect_ratio > MAX_PERSON_ASPECT_RATIO:
+                            continue
                 
                 # Filter 3: Size filter (reject buildings, sky, huge boxes)
                 if ENABLE_SIZE_FILTER:
