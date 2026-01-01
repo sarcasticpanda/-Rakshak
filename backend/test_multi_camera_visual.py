@@ -1,51 +1,15 @@
 """
-Visual Multi-Camera Display
-Shows all cameras in a tiled grid view with live annotations
+Visual Multi-Camera Display - OPTIMIZED FOR MINIMUM LATENCY
+Shows all cameras with live annotations including heatmap
+Direct CameraPipeline access - no redundant threading layers
 """
 import cv2
 import time
 import numpy as np
-from pathlib import Path
 import sys
-import threading
-from queue import Queue, Empty
 
 sys.path.insert(0, '.')
 from app.core.camera_pipeline import CameraPipeline, CameraConfig
-
-    # CameraContext: holds per-camera state and queue
-class CameraContext:
-    def __init__(self, name, cam):
-        self.name = name
-        self.cam = cam
-        self.frame_queue = Queue(maxsize=1)  # Only latest frame kept
-        self.latest_frame = None
-        self.latest_metrics = None
-        self.people_count = 0
-        self.risk = 0
-        self.fps = 0
-        self.last_update = time.time()
-        self.error = None
-        self.lock = threading.Lock()
-
-    def update(self, frame, metrics):
-        with self.lock:
-            self.latest_frame = frame
-            self.latest_metrics = metrics
-            self.people_count = getattr(metrics, 'people_count', 0) if metrics else 0
-            self.risk = getattr(metrics, 'risk_score', 0) if metrics else 0
-            self.last_update = time.time()
-            # FPS is updated in processing thread
-
-    def get_display_frame(self):
-        with self.lock:
-            return self.latest_frame.copy() if self.latest_frame is not None else None
-    def get_metrics(self):
-        with self.lock:
-            return self.latest_metrics
-    def get_stats(self):
-        with self.lock:
-            return self.people_count, self.risk, self.fps, self.error
 
 def create_grid(frames, grid_cols=2):
     """
@@ -94,281 +58,117 @@ def create_grid(frames, grid_cols=2):
 
 def main():
     print("="*60)
-    print("VISUAL MULTI-CAMERA PARALLEL PROCESSING")
+    print("OPTIMIZED MULTI-CAMERA MONITORING")
     print("="*60)
-    
-    # Create pipelines for 3 cameras
+
+    # Direct CameraPipeline setup - no wrapper layers
     cameras = []
+    configs = [
+        ("Stampede", "cam_stampede", "../check_vids/stampede.mp4"),
+        ("Test2", "cam_test2", "../check_vids/test2.mp4"),
+        ("Test3", "cam_test3", "../check_vids/test3.mp4"),
+    ]
     
-    # Camera 1: Stampede
     print("\n[Setup] Initializing cameras...")
-    cam1 = CameraPipeline(CameraConfig(
-        camera_id="cam_stampede",
-        name="Stampede Dense",
-        source="../check_vids/stampede.mp4",
-        location="Location 1",
-        target_fps=10
-    ))
-    if cam1.connect():
-        cam1.start()
-        cameras.append(("Stampede", cam1))
-    
-    # Camera 2: Test2
-    cam2 = CameraPipeline(CameraConfig(
-        camera_id="cam_test2",
-        name="Test2 Sparse",
-        source="../check_vids/test2.mp4",
-        location="Location 2",
-        target_fps=10
-    ))
-    if cam2.connect():
-        cam2.start()
-        cameras.append(("Test2", cam2))
-    
-    # Camera 3: Test3
-    cam3 = CameraPipeline(CameraConfig(
-        camera_id="cam_test3",
-        name="Test3 Medium",
-        source="../check_vids/test3.mp4",
-        location="Location 3",
-        target_fps=10
-    ))
-    if cam3.connect():
-        cam3.start()
-        cameras.append(("Test3", cam3))
-    
+    for name, cam_id, source in configs:
+        cam = CameraPipeline(CameraConfig(
+            camera_id=cam_id,
+            name=name,
+            source=source,
+            location=f"Location {len(cameras)+1}",
+            target_fps=30  # 30 FPS = 33ms per frame (smooth)
+        ))
+        if cam.connect():
+            cam.start()  # CameraPipeline already runs detection in its own thread
+            cameras.append((name, cam))
+            print(f"  ✅ {name} ready")
+
     print(f"\n✅ {len(cameras)} cameras active")
     print("\n" + "="*60)
-    print("GRID VIEW - Press Q to quit, S for screenshot")
+    print("CONTROLS: Q = Quit | S = Screenshot")
+    print("Heatmap appears after ~30 frames")
     print("="*60)
-    
-    # Wait for cameras to produce first frames
-    print("\nWaiting for cameras to produce frames...")
-    time.sleep(5)
-    
+
+    time.sleep(2)  # Reduced wait time
+
     frame_count = 0
-    last_errors = {name: None for name, _ in cameras}
-    last_fps = {name: 0 for name, _ in cameras}
-    last_frame_time = {name: time.time() for name, _ in cameras}
+    last_time = time.time()
+    display_fps = 0
     try:
         while True:
             frames = []
-            total_people = 0
-            max_risk = 0
+            
+            # Track display FPS
+            now = time.time()
+            if frame_count % 30 == 0:
+                dt = now - last_time
+                if dt > 0:
+                    display_fps = 30.0 / dt
+                last_time = now
+            
+            # Direct frame access - minimal overhead
             for name, cam in cameras:
                 try:
+                    # CameraPipeline.get_frame() returns fully annotated frame
+                    # (detection boxes, IDs, heatmap, metrics dashboard)
                     frame = cam.get_frame()
-                    metrics = cam.get_metrics()
-                    now = time.time()
-                    # FPS calculation
+                    
                     if frame is not None:
-                        dt = now - last_frame_time[name]
-                        last_fps[name] = 1.0/dt if dt > 0 else 0
-                        last_frame_time[name] = now
-                    # Resize for grid display (smaller)
-                    if frame is not None:
+                        # Just resize for grid - frame already has all annotations
                         frame_resized = cv2.resize(frame, (640, 360))
-                        # Overlay camera name and FPS
-                        cv2.rectangle(frame_resized, (0,0), (200,30), (0,0,0), -1)
-                        cv2.putText(frame_resized, f"{name} | FPS: {last_fps[name]:.1f}", (10,22), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,255), 2)
-                        # Overlay error if any
-                        if last_errors[name]:
-                            cv2.putText(frame_resized, f"ERROR: {last_errors[name]}", (10,50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 2)
                         frames.append((name, frame_resized))
-                        if metrics:
-                            total_people += getattr(metrics, 'people_count', 0)
-                            max_risk = max(max_risk, getattr(metrics, 'risk_score', 0))
-                        else:
-                            # Overlay no metrics
-                            cv2.putText(frame_resized, "NO METRICS", (10,70), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 2)
                     else:
-                        # No frame: show error overlay
-                        error_img = np.zeros((360, 640, 3), dtype=np.uint8)
-                        cv2.putText(error_img, f"NO FRAME", (120, 180), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0,0,255), 3)
-                        if last_errors[name]:
-                            cv2.putText(error_img, f"ERROR: {last_errors[name]}", (10, 300), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255), 2)
-                        frames.append((name, error_img))
+                        # Loading placeholder
+                        placeholder = np.zeros((360, 640, 3), dtype=np.uint8)
+                        cv2.putText(placeholder, f"LOADING {name}...", (150, 180), 
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
+                        frames.append((name, placeholder))
+                        
                 except Exception as e:
-                    last_errors[name] = str(e)
-                    print(f"[ERROR] Camera {name}: {e}")
-                    # Show error overlay
+                    print(f"[ERROR] {name}: {e}")
                     error_img = np.zeros((360, 640, 3), dtype=np.uint8)
-                    cv2.putText(error_img, f"CAMERA ERROR", (100, 180), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0,0,255), 3)
-                    cv2.putText(error_img, f"{e}", (10, 300), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255), 2)
+                    cv2.putText(error_img, f"ERROR", (250, 180), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
                     frames.append((name, error_img))
-            if len(frames) > 0:
+            
+            if frames:
                 frame_count += 1
                 grid = create_grid(frames, grid_cols=2)
+                
                 if grid is not None:
                     h, w = grid.shape[:2]
-                    # Top banner
-                    cv2.rectangle(grid, (0, 0), (w, 60), (0, 0, 0), -1)
-                    cv2.putText(grid, f"MULTI-CAMERA MONITORING", (w//2 - 200, 25),
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
-                    cv2.putText(grid, f"Total People: {total_people if total_people else '?'} | Max Risk: {max_risk if max_risk else '?'}", 
-                               (w//2 - 150, 50),
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
-                    cv2.imshow("Multi-Camera Grid View", grid)
-                    if frame_count % 30 == 1:
-                        for name in last_fps:
-                            print(f"[Frame {frame_count}] {name}: FPS={last_fps[name]:.1f} | Last error: {last_errors[name]}")
-            else:
-                print(f"⚠️ No frames available yet... waiting")
-                time.sleep(0.5)
-            key = cv2.waitKey(30) & 0xFF
+                    # Minimal top banner with FPS
+                    cv2.rectangle(grid, (0, 0), (w, 50), (0, 0, 0), -1)
+                    status = "🟢 HEATMAP ACTIVE" if frame_count > 30 else "🟡 WARMING UP"
+                    cv2.putText(grid, f"MULTI-CAMERA | Frame {frame_count} | {status} | Display: {display_fps:.1f} FPS", 
+                               (10, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+                    
+                    cv2.imshow("Multi-Camera Grid", grid)
+                    
+                    # Status update every 60 frames
+                    if frame_count % 60 == 1:
+                        print(f"[Frame {frame_count}] {len(cameras)} cameras | {status}")
+            
+            # Minimal wait for smooth display (1ms vs 30ms)
+            key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):
-                print("\n⛔ Quit requested")
+                print("\n⛔ Quit")
                 break
             elif key == ord('s'):
                 if 'grid' in locals() and grid is not None:
                     filename = f"output/multi_camera_{int(time.time())}.jpg"
                     cv2.imwrite(filename, grid)
-                    print(f"\n📸 Screenshot saved: {filename}")
+                    print(f"\n📸 Saved: {filename}")
+                    
     except KeyboardInterrupt:
-        pass
+        print("\n⚠️ Interrupted")
     finally:
-        print("\n\nStopping cameras...")
-        for _, cam in cameras:
+        print("\nStopping cameras...")
+        for name, cam in cameras:
             cam.stop()
             cam.disconnect()
         cv2.destroyAllWindows()
-        print("\n" + "="*60)
-        print("✅ All cameras stopped")
-        print("="*60)
-
-def camera_capture_loop(context: CameraContext):
-    while True:
-        try:
-            frame = context.cam.get_frame()
-            metrics = context.cam.get_metrics()
-            # Always keep only the latest frame in the queue
-            if frame is not None:
-                try:
-                    context.frame_queue.get_nowait()
-                except Empty:
-                    pass
-                context.frame_queue.put((frame, metrics))
-        except Exception as e:
-            context.error = str(e)
-        time.sleep(0.01)  # Small sleep to avoid busy loop
-
-def camera_processing_loop(context: CameraContext):
-    last_time = time.time()
-    while True:
-        try:
-            frame, metrics = context.frame_queue.get()
-            now = time.time()
-            dt = now - last_time
-            context.fps = 1.0/dt if dt > 0 else 0
-            last_time = now
-            context.update(frame, metrics)
-        except Exception as e:
-            context.error = str(e)
-
-def main():
-    print("="*60)
-    print("VISUAL MULTI-CAMERA PARALLEL PROCESSING")
-    print("="*60)
-
-    # Camera setup
-    camera_configs = [
-        ("Stampede", CameraConfig(
-            camera_id="cam_stampede",
-            name="Stampede Dense",
-            source="../check_vids/stampede.mp4",
-            location="Location 1",
-            target_fps=10)),
-        ("Test2", CameraConfig(
-            camera_id="cam_test2",
-            name="Test2 Sparse",
-            source="../check_vids/test2.mp4",
-            location="Location 2",
-            target_fps=10)),
-        ("Test3", CameraConfig(
-            camera_id="cam_test3",
-            name="Test3 Medium",
-            source="../check_vids/test3.mp4",
-            location="Location 3",
-            target_fps=10)),
-    ]
-    contexts = []
-    print("\n[Setup] Initializing cameras...")
-    for name, config in camera_configs:
-        cam = CameraPipeline(config)
-        if cam.connect():
-            cam.start()
-            context = CameraContext(name, cam)
-            contexts.append(context)
-            # Start capture and processing threads
-            threading.Thread(target=camera_capture_loop, args=(context,), daemon=True).start()
-            threading.Thread(target=camera_processing_loop, args=(context,), daemon=True).start()
-
-    print(f"\n✅ {len(contexts)} cameras active")
-    print("\n" + "="*60)
-    print("GRID VIEW - Press Q to quit, S for screenshot")
-    print("="*60)
-
-    print("\nWaiting for cameras to produce frames...")
-    time.sleep(5)
-
-    frame_count = 0
-    try:
-        while True:
-            frames = []
-            for context in contexts:
-                frame = context.get_display_frame()
-                people, risk, fps, error = context.get_stats()
-                # Defensive: overlay stats on each frame
-                if frame is not None:
-                    frame_resized = cv2.resize(frame, (640, 360))
-                    cv2.rectangle(frame_resized, (0,0), (320,60), (0,0,0), -1)
-                    cv2.putText(frame_resized, f"{context.name} | FPS: {fps:.1f}", (10,22), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,255), 2)
-                    cv2.putText(frame_resized, f"People: {people} | Risk: {risk:.1f}", (10,50), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2)
-                    if error:
-                        cv2.putText(frame_resized, f"ERROR: {error}", (10,80), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 2)
-                    frames.append((context.name, frame_resized))
-                else:
-                    error_img = np.zeros((360, 640, 3), dtype=np.uint8)
-                    cv2.putText(error_img, f"NO FRAME", (120, 180), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0,0,255), 3)
-                    if error:
-                        cv2.putText(error_img, f"ERROR: {error}", (10, 300), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255), 2)
-                    frames.append((context.name, error_img))
-            if len(frames) > 0:
-                frame_count += 1
-                grid = create_grid(frames, grid_cols=2)
-                if grid is not None:
-                    h, w = grid.shape[:2]
-                    # Top banner
-                    cv2.rectangle(grid, (0, 0), (w, 60), (0, 0, 0), -1)
-                    cv2.putText(grid, f"MULTI-CAMERA MONITORING", (w//2 - 200, 25),
-                               cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
-                    cv2.imshow("Multi-Camera Grid View", grid)
-                    if frame_count % 30 == 1:
-                        for context in contexts:
-                            print(f"[Frame {frame_count}] {context.name}: FPS={context.fps:.1f} | People={context.people_count} | Risk={context.risk:.1f} | Error={context.error}")
-            else:
-                print(f"⚠️ No frames available yet... waiting")
-                time.sleep(0.5)
-            key = cv2.waitKey(30) & 0xFF
-            if key == ord('q'):
-                print("\n⛔ Quit requested")
-                break
-            elif key == ord('s'):
-                if 'grid' in locals() and grid is not None:
-                    filename = f"output/multi_camera_{int(time.time())}.jpg"
-                    cv2.imwrite(filename, grid)
-                    print(f"\n📸 Screenshot saved: {filename}")
-    except KeyboardInterrupt:
-        pass
-    finally:
-        print("\n\nStopping cameras...")
-        for context in contexts:
-            context.cam.stop()
-            context.cam.disconnect()
-        cv2.destroyAllWindows()
-        print("\n" + "="*60)
-        print("✅ All cameras stopped")
-        print("="*60)
+        print("✅ Done")
 
 if __name__ == "__main__":
     main()
