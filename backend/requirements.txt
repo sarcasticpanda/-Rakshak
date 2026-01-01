@@ -25,6 +25,10 @@ uvicorn[standard]==0.27.0
 python-multipart==0.0.9
 pydantic==2.6.0
 
+# MongoDB (Async driver for FastAPI)
+motor==3.3.2
+pymongo==4.6.1
+
 # Utilities
 python-dotenv==1.0.1
 requests==2.31.0

@@ -1,0 +1,247 @@
+"""
+Camera Management API - CRUD Operations
+"""
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from typing import Optional, List
+from app.core.camera_lifecycle import camera_manager
+from app.core.camera_pipeline import CameraConfig
+from app.db.connection import get_database
+from app.db.repositories import CameraRepository
+
+
+router = APIRouter(prefix="/cameras", tags=["cameras"])
+
+
+class CameraCreateRequest(BaseModel):
+    """Request model for creating a camera"""
+    camera_id: str
+    name: str
+    source: str  # RTSP URL, file path, or webcam index
+    location: str = "Unknown"
+    context: str = "general"
+    enabled: bool = True
+    target_fps: int = 15
+    resolution: Optional[tuple[int, int]] = None
+
+
+class CameraResponse(BaseModel):
+    """Response model for camera info"""
+    camera_id: str
+    name: str
+    source: str
+    location: str
+    status: str
+    thread_id: Optional[int] = None
+    is_alive: bool = False
+    uptime_seconds: float = 0.0
+    error: Optional[str] = None
+
+
+@router.post("/", response_model=CameraResponse)
+async def create_camera(request: CameraCreateRequest):
+    """
+    Create and start a new camera
+    
+    Args:
+        request: Camera configuration
+        
+    Returns:
+        Camera status
+    """
+    # Check if camera already exists
+    if request.camera_id in camera_manager.processes:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Camera '{request.camera_id}' already exists. Use a different camera_id or delete the existing one first."
+        )
+    
+    # Create config
+    try:
+        config = CameraConfig(
+            camera_id=request.camera_id,
+            name=request.name,
+            source=request.source,
+            location=request.location,
+            context=request.context,
+            enabled=request.enabled,
+            target_fps=request.target_fps,
+            resolution=request.resolution
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid configuration: {str(e)}")
+    
+    # Start camera
+    success = camera_manager.start_camera(config)
+    
+    if not success:
+        raise HTTPException(
+            status_code=400, 
+            detail="Failed to start camera. Check if the video source exists and is accessible."
+        )
+    
+    # Persist to MongoDB (non-blocking, fails gracefully)
+    try:
+        db = get_database()
+        if db is not None:
+            repo = CameraRepository(db)
+            await repo.create(config)
+    except Exception as e:
+        print(f"[Camera API] Warning: Failed to persist to database: {e}")
+        # Continue - camera is running
+    
+    # Get status
+    status = camera_manager.get_camera_status(request.camera_id)
+    
+    if not status:
+        raise HTTPException(status_code=500, detail="Camera started but status unavailable")
+    
+    return CameraResponse(
+        camera_id=status['camera_id'],
+        name=request.name,
+        source=request.source,
+        location=request.location,
+        status=status.get('status', 'unknown'),
+        thread_id=status.get('thread_id'),
+        is_alive=status.get('is_alive', False),
+        uptime_seconds=status.get('uptime_seconds', 0.0),
+        error=status.get('error')
+    )
+
+
+@router.get("/", response_model=List[CameraResponse])
+async def list_cameras():
+    """
+    List all cameras
+    
+    Returns:
+        List of camera statuses
+    """
+    cameras = camera_manager.list_cameras()
+    
+    result = []
+    for cam in cameras:
+        try:
+            cam_id = cam.get('camera_id')
+            if not cam_id:
+                continue
+            
+            # Get config safely
+            config = camera_manager.configs.get(cam_id)
+            if not config:
+                print(f"[API] Warning: Config missing for camera {cam_id}")
+                continue
+                
+            result.append(CameraResponse(
+                camera_id=cam_id,
+                name=config.name,
+                source=config.source,
+                location=config.location,
+                status=cam.get('status', 'unknown'),
+                thread_id=cam.get('thread_id'),
+                is_alive=cam.get('is_alive', False),
+                uptime_seconds=cam.get('uptime_seconds', 0.0),
+                error=cam.get('error')
+            ))
+        except Exception as e:
+            print(f"[API] Error processing camera {cam.get('camera_id', 'unknown')}: {e}")
+            continue
+    
+    return result
+
+
+@router.get("/{camera_id}", response_model=CameraResponse)
+async def get_camera(camera_id: str):
+    """
+    Get camera by ID
+    
+    Args:
+        camera_id: Camera identifier
+        
+    Returns:
+        Camera status
+    """
+    status = camera_manager.get_camera_status(camera_id)
+    
+    if not status:
+        raise HTTPException(status_code=404, detail=f"Camera '{camera_id}' not found")
+    
+    # Get config safely
+    config = camera_manager.configs.get(camera_id)
+    if not config:
+        raise HTTPException(status_code=500, detail=f"Camera '{camera_id}' exists but config is missing")
+    
+    return CameraResponse(
+        camera_id=status['camera_id'],
+        name=config.name,
+        source=config.source,
+        location=config.location,
+        status=status.get('status', 'unknown'),
+        thread_id=status.get('thread_id'),
+        is_alive=status.get('is_alive', False),
+        uptime_seconds=status.get('uptime_seconds', 0.0),
+        error=status.get('error')
+    )
+
+
+@router.post("/{camera_id}/start")
+async def start_camera(camera_id: str):
+    """Start a stopped camera"""
+    config = camera_manager.configs.get(camera_id)
+    
+    if not config:
+        raise HTTPException(status_code=404, detail=f"Camera '{camera_id}' not found")
+    
+    success = camera_manager.start_camera(config)
+    
+    if not success:
+        raise HTTPException(status_code=400, detail="Failed to start camera")
+    
+    return {"status": "started", "camera_id": camera_id}
+
+
+@router.post("/{camera_id}/stop")
+async def stop_camera(camera_id: str):
+    """Stop a running camera"""
+    success = camera_manager.stop_camera(camera_id)
+    
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Camera '{camera_id}' not found")
+    
+    return {"status": "stopped", "camera_id": camera_id}
+
+
+@router.post("/{camera_id}/restart")
+async def restart_camera(camera_id: str):
+    """Restart a camera"""
+    success = camera_manager.restart_camera(camera_id)
+    
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Camera '{camera_id}' not found")
+    
+    return {"status": "restarted", "camera_id": camera_id}
+
+
+@router.delete("/{camera_id}")
+async def delete_camera(camera_id: str):
+    """Delete a camera"""
+    success = camera_manager.stop_camera(camera_id)
+    
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Camera '{camera_id}' not found")
+    
+    # Remove from configs
+    if camera_id in camera_manager.configs:
+        del camera_manager.configs[camera_id]
+    
+    # Delete from MongoDB (non-blocking, fails gracefully)
+    try:
+        db = get_database()
+        if db is not None:
+            repo = CameraRepository(db)
+            await repo.delete(camera_id)
+    except Exception as e:
+        print(f"[Camera API] Warning: Failed to delete from database: {e}")
+    
+    return {"message": f"Camera '{camera_id}' deleted"}
+    return {"status": "deleted", "camera_id": camera_id}
