@@ -133,7 +133,7 @@ async def restore_areas():
             return
         
         repo = AreaRepository(db)
-        areas = await repo.list(enabled_only=True)
+        areas = await repo.list(enabled_only=False)  # Get all areas, filter by enabled field below
         
         if not areas:
             print("[Startup] No areas found in database")

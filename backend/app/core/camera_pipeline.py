@@ -191,7 +191,7 @@ class CameraPipeline:
             return SourceType.RTSP
         elif source.startswith("http://") or source.startswith("https://"):
             return SourceType.IP_WEBCAM
-        elif Path(source).exists():
+        elif Path(source).resolve().exists():
             return SourceType.VIDEO_FILE
         else:
             return SourceType.UNKNOWN
@@ -287,6 +287,7 @@ class CameraPipeline:
     def _process_loop(self):
         """Main processing loop (runs in thread)"""
         frame_time = 1.0 / self.config.target_fps
+        print(f"[CameraPipeline:{self.camera_id}] _process_loop started")
         
         while self._running:
             loop_start = time.time()
@@ -308,8 +309,12 @@ class CameraPipeline:
                 if self.config.resolution:
                     frame = cv2.resize(frame, self.config.resolution)
                 
-                # Process frame
+                # Process frame (this sets current_annotated)
                 metrics = self._process_frame(frame)
+                
+                # Debug: Log first processed frame
+                if self._frame_count == 1:
+                    print(f"[CameraPipeline:{self.camera_id}] ✅ First frame processed")
                 
                 # Update FPS
                 self._frame_count += 1

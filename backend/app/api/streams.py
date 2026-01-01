@@ -2,7 +2,9 @@
 Video Streaming API - MJPEG Streams
 Non-blocking proxy to SharedFrameStore
 """
+import time
 import cv2
+import numpy as np
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from app.core.shared_store import shared_store
@@ -21,36 +23,45 @@ def generate_mjpeg_stream(camera_id: str):
     Yields:
         JPEG frames in MJPEG format
     """
+    frame_delay = 0.033  # 30 FPS = ~33ms between frames
+    
     while True:
-        # Get latest frame from shared store (non-blocking)
-        frame = shared_store.get_frame(camera_id)
-        
-        if frame is not None:
-            # Encode frame as JPEG
-            ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        try:
+            # Get latest frame from shared store (non-blocking)
+            frame = shared_store.get_frame(camera_id)
             
-            if ret:
-                # Yield frame in MJPEG format
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + 
-                       buffer.tobytes() + b'\r\n')
-        else:
-            # No frame available - send blank frame
-            blank = cv2.imencode('.jpg', 
-                                cv2.putText(
-                                    cv2.rectangle(
-                                        cv2.UMat((480, 640, 3), cv2.CV_8UC3).get(), 
-                                        (0,0), (640, 480), (0,0,0), -1
-                                    ).get(),
-                                    "NO SIGNAL", 
-                                    (200, 240), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 
-                                    1.0, (255, 255, 255), 2
-                                ).get())[1]
+            if frame is not None:
+                # Encode frame as JPEG
+                ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                
+                if ret:
+                    # Yield frame in MJPEG format
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + 
+                           buffer.tobytes() + b'\r\n')
+            else:
+                # No frame available - send blank frame with "NO SIGNAL"
+                blank = np.zeros((480, 640, 3), dtype=np.uint8)
+                cv2.rectangle(blank, (0, 0), (640, 480), (0, 0, 0), -1)
+                cv2.putText(blank, "NO SIGNAL", (200, 240), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
+                
+                ret, buffer = cv2.imencode('.jpg', blank, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                if ret:
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + 
+                           buffer.tobytes() + b'\r\n')
             
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + 
-                   blank.tobytes() + b'\r\n')
+            # CRITICAL: Sleep to control frame rate
+            time.sleep(frame_delay)
+            
+        except GeneratorExit:
+            # Client disconnected
+            break
+        except Exception as e:
+            # Log error but don't crash the stream
+            print(f"[Stream:{camera_id}] Error: {e}")
+            time.sleep(0.1)
 
 
 @router.get("/{camera_id}")
@@ -64,9 +75,8 @@ async def get_camera_stream(camera_id: str):
     Returns:
         MJPEG stream
     """
-    # Check if camera exists
-    if camera_id not in shared_store.list_cameras():
-        raise HTTPException(status_code=404, detail="Camera not found")
+    # Note: We don't check if camera exists here - generator will show "NO SIGNAL"
+    # if no frames are available. This simplifies the code.
     
     return StreamingResponse(
         generate_mjpeg_stream(camera_id),

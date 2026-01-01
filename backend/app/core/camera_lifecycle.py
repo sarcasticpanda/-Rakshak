@@ -40,12 +40,28 @@ def run_camera_pipeline(config: CameraConfig, stop_event: Event):
         pipeline = CameraPipeline(config)
         
         if not pipeline.connect():
-            shared_store.update_status(config.camera_id, "error", "Failed to connect")
+            error_msg = f"Failed to connect to source: {config.source}"
+            print(f"[ERROR] Camera {config.camera_id}: {error_msg}")
+            shared_store.update_status(config.camera_id, "error", error_msg)
             return
         
         # Start processing
         pipeline.start()
         shared_store.update_status(config.camera_id, "running")
+        
+        # Wait for first frame (up to 5 seconds)
+        print(f"[CameraLifecycle:{config.camera_id}] Waiting for first frame...")
+        wait_start = time.time()
+        while time.time() - wait_start < 5.0:
+            if pipeline.get_frame() is not None:
+                print(f"[CameraLifecycle:{config.camera_id}] ✅ First frame ready")
+                break
+            time.sleep(0.1)
+        else:
+            error_msg = "Timeout waiting for first frame"
+            print(f"[ERROR] Camera {config.camera_id}: {error_msg}")
+            shared_store.update_status(config.camera_id, "error", error_msg)
+            return
         
         # Main loop - publish frames and metrics
         while not stop_event.is_set():
@@ -83,6 +99,7 @@ def run_camera_pipeline(config: CameraConfig, stop_event: Event):
                 time.sleep(0.033)  # ~30 Hz update rate
                 
             except Exception as e:
+                print(f"[ERROR] Camera {config.camera_id} runtime error: {e}")
                 shared_store.update_status(config.camera_id, "error", str(e))
                 time.sleep(1.0)
         
@@ -92,6 +109,7 @@ def run_camera_pipeline(config: CameraConfig, stop_event: Event):
         shared_store.update_status(config.camera_id, "stopped")
         
     except Exception as e:
+        print(f"[ERROR] Camera {config.camera_id} startup failed: {e}")
         shared_store.update_status(config.camera_id, "error", str(e))
 
 
