@@ -79,6 +79,7 @@ def run_camera_pipeline(config: CameraConfig, stop_event: Event):
                         'camera_id': config.camera_id,
                         'people_count': metrics.people_count,
                         'density': metrics.density,
+                        'density_normalized': metrics.density_normalized,  # Add normalized density
                         'risk_score': metrics.risk_score,
                         'risk_level': metrics.risk_level,
                         'compression': metrics.compression,

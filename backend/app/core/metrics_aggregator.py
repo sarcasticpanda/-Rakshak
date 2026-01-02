@@ -99,14 +99,20 @@ class MetricsAggregator:
                 # Calculate smoothed metrics
                 smoothed = self._smooth_metrics(camera_id)
                 
+                # DEBUG: Log density values (state.metrics is a dict, not an object!)
+                raw_density_norm = state.metrics.get('density_normalized', None) if isinstance(state.metrics, dict) else None
+                smoothed_density = smoothed.get('density_normalized', 'N/A')
+                if camera_id == 'cam_stampede':  # Only log for one camera to avoid spam
+                    print(f"[MetricsAgg:{camera_id}] Raw density_normalized: {raw_density_norm}, Smoothed: {smoothed_density}")
+                
                 metrics_snapshot['cameras'][camera_id] = {
                     'camera_id': camera_id,
                     'timestamp': time.time(),  # Required for MongoDB TTL index
                     'status': state.status,
-                    'people_count': state.metrics.get('people_count', 0),
-                    'density': smoothed.get('density', 0.0),
+                    'people_count': state.metrics.get('people_count', 0) if isinstance(state.metrics, dict) else 0,
+                    'density': smoothed.get('density_normalized', 0.0),  # Use normalized 0-1 range
                     'risk_score': smoothed.get('risk_score', 0.0),
-                    'risk_level': state.metrics.get('risk_level', 'LOW'),
+                    'risk_level': state.metrics.get('risk_level', 'LOW') if isinstance(state.metrics, dict) else 'LOW',
                     'avg_speed': smoothed.get('avg_speed', 0.0),
                     'compression': smoothed.get('compression', 0.0),
                     'velocity_variance': smoothed.get('velocity_variance', 0.0),
@@ -154,10 +160,10 @@ class MetricsAggregator:
         
         # Calculate moving average for key metrics
         smoothed = {}
-        keys = ['density', 'risk_score', 'avg_speed', 'compression', 'velocity_variance']
+        keys = ['density_normalized', 'risk_score', 'avg_speed', 'compression', 'velocity_variance']
         
         for key in keys:
-            values = [m.get(key, 0.0) for m in history if key in m]
+            values = [m.get(key, 0.0) if isinstance(m, dict) else getattr(m, key, 0.0) for m in history]
             if values:
                 smoothed[key] = sum(values) / len(values)
         

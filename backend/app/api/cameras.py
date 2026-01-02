@@ -8,6 +8,7 @@ from app.core.camera_lifecycle import camera_manager
 from app.core.camera_pipeline import CameraConfig
 from app.db.connection import get_database
 from app.db.repositories import CameraRepository
+from app.core.shared_store import shared_store  # CRITICAL FIX: Access to latest metrics
 
 
 router = APIRouter(prefix="/cameras", tags=["cameras"])
@@ -36,6 +37,7 @@ class CameraResponse(BaseModel):
     is_alive: bool = False
     uptime_seconds: float = 0.0
     error: Optional[str] = None
+    latest_metrics: Optional[dict] = None  # CRITICAL FIX: Include latest metrics from SharedStore
 
 
 @router.post("/", response_model=CameraResponse)
@@ -96,6 +98,9 @@ async def create_camera(request: CameraCreateRequest):
     if not status:
         raise HTTPException(status_code=500, detail="Camera started but status unavailable")
     
+    # CRITICAL FIX: Get latest metrics from SharedStore
+    latest_metrics = shared_store.get_metrics(request.camera_id)
+    
     return CameraResponse(
         camera_id=status['camera_id'],
         name=request.name,
@@ -105,7 +110,8 @@ async def create_camera(request: CameraCreateRequest):
         thread_id=status.get('thread_id'),
         is_alive=status.get('is_alive', False),
         uptime_seconds=status.get('uptime_seconds', 0.0),
-        error=status.get('error')
+        error=status.get('error'),
+        latest_metrics=latest_metrics
     )
 
 
@@ -132,6 +138,9 @@ async def list_cameras():
                 print(f"[API] Warning: Config missing for camera {cam_id}")
                 continue
                 
+            # CRITICAL FIX: Get latest metrics from SharedStore
+            latest_metrics = shared_store.get_metrics(cam_id)
+            
             result.append(CameraResponse(
                 camera_id=cam_id,
                 name=config.name,
@@ -141,7 +150,8 @@ async def list_cameras():
                 thread_id=cam.get('thread_id'),
                 is_alive=cam.get('is_alive', False),
                 uptime_seconds=cam.get('uptime_seconds', 0.0),
-                error=cam.get('error')
+                error=cam.get('error'),
+                latest_metrics=latest_metrics
             ))
         except Exception as e:
             print(f"[API] Error processing camera {cam.get('camera_id', 'unknown')}: {e}")
@@ -171,6 +181,9 @@ async def get_camera(camera_id: str):
     if not config:
         raise HTTPException(status_code=500, detail=f"Camera '{camera_id}' exists but config is missing")
     
+    # CRITICAL FIX: Get latest metrics from SharedStore
+    latest_metrics = shared_store.get_metrics(camera_id)
+    
     return CameraResponse(
         camera_id=status['camera_id'],
         name=config.name,
@@ -180,7 +193,8 @@ async def get_camera(camera_id: str):
         thread_id=status.get('thread_id'),
         is_alive=status.get('is_alive', False),
         uptime_seconds=status.get('uptime_seconds', 0.0),
-        error=status.get('error')
+        error=status.get('error'),
+        latest_metrics=latest_metrics
     )
 
 
@@ -243,5 +257,55 @@ async def delete_camera(camera_id: str):
     except Exception as e:
         print(f"[Camera API] Warning: Failed to delete from database: {e}")
     
-    return {"message": f"Camera '{camera_id}' deleted"}
     return {"status": "deleted", "camera_id": camera_id}
+
+
+@router.get("/{camera_id}/metrics/latest")
+async def get_latest_metrics(camera_id: str):
+    """
+    Get latest metrics for a camera (FALLBACK ENDPOINT)
+    
+    Use this endpoint when WebSocket connection fails.
+    Frontend can poll this every 2 seconds as fallback.
+    
+    Args:
+        camera_id: Camera identifier
+        
+    Returns:
+        Latest metrics from SharedStore
+    """
+    metrics = shared_store.get_metrics(camera_id)
+    
+    if not metrics:
+        raise HTTPException(status_code=404, detail=f"No metrics available for camera '{camera_id}'")
+    
+    return {
+        "camera_id": camera_id,
+        "metrics": metrics,
+        "timestamp": metrics.get('timestamp', 0)
+    }
+
+
+@router.get("/metrics/latest")
+async def get_all_latest_metrics():
+    """
+    Get latest metrics for ALL cameras (FALLBACK ENDPOINT)
+    
+    Use this endpoint when WebSocket connection fails.
+    Frontend can poll this every 2 seconds as fallback.
+    
+    Returns:
+        All camera metrics from SharedStore
+    """
+    all_metrics = shared_store.get_all_metrics()
+    
+    # Format to match WebSocket message format
+    cameras_data = {}
+    for cam_id, metrics in all_metrics.items():
+        if metrics:  # Only include cameras with metrics
+            cameras_data[cam_id] = metrics
+    
+    return {
+        "timestamp": __import__('time').time(),
+        "cameras": cameras_data
+    }

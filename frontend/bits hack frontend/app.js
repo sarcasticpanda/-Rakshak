@@ -16,7 +16,8 @@ const state = {
     alerts: [],
     ws: null,
     reconnectAttempts: 0,
-    maxReconnectAttempts: 5
+    maxReconnectAttempts: Infinity,  // CRITICAL FIX: Unlimited reconnection attempts
+    fallbackPolling: null  // CRITICAL FIX: Fallback polling interval when WebSocket fails
 };
 
 // Initialize on load
@@ -43,6 +44,11 @@ async function initializeApp() {
         updateDashboard();
         updateCameraFeeds();
         updateCameraManagement();
+        
+        // CRITICAL FIX: Initialize chart with camera names before WebSocket connects
+        if (state.cameras.length > 0 && window.densityChart) {
+            initializeDensityChart();
+        }
         
         // Set up periodic UI refresh
         setInterval(() => {
@@ -79,6 +85,20 @@ async function initializeApp() {
             await loadCameras();
             updateCameraFeeds();
             updateCameraManagement();
+        });
+        
+        // Wire up alert filter buttons
+        const alertFilterBtns = document.querySelectorAll('.alert-filters .filter-btn');
+        alertFilterBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Remove active class from all buttons
+                alertFilterBtns.forEach(b => b.classList.remove('active'));
+                // Add active to clicked button
+                btn.classList.add('active');
+                // Get filter value and update display
+                const filter = btn.getAttribute('data-filter');
+                updateAlertsDisplay(filter);
+            });
         });
     } catch (error) {
         console.error('❌ Initialization failed:', error);
@@ -152,6 +172,9 @@ function connectWebSocket() {
             console.log('✅ WebSocket connected successfully!');
             state.reconnectAttempts = 0;
             updateConnectionStatus(true);
+            
+            // CRITICAL FIX: Stop fallback polling when WebSocket reconnects
+            stopFallbackPolling();
         };
         
         state.ws.onmessage = (event) => {
@@ -182,15 +205,14 @@ function connectWebSocket() {
             });
             updateConnectionStatus(false);
             
-            // Attempt reconnection
-            if (state.reconnectAttempts < state.maxReconnectAttempts) {
-                state.reconnectAttempts++;
-                const delay = Math.min(1000 * Math.pow(2, state.reconnectAttempts), 30000);
-                console.log(`🔄 Reconnecting in ${delay}ms... (attempt ${state.reconnectAttempts})`);
-                setTimeout(connectWebSocket, delay);
-            } else {
-                console.error('❌ Max reconnection attempts reached. Please refresh the page.');
-            }
+            // CRITICAL FIX: Start fallback polling when WebSocket disconnects
+            startFallbackPolling();
+            
+            // Attempt reconnection with unlimited attempts but capped delay
+            state.reconnectAttempts++;
+            const delay = Math.min(1000 * Math.pow(2, state.reconnectAttempts), 30000);  // Cap at 30s
+            console.log(`🔄 Reconnecting in ${(delay/1000).toFixed(1)}s... (attempt ${state.reconnectAttempts})`);
+            setTimeout(connectWebSocket, delay);
         };
     } catch (error) {
         console.error('❌ Failed to create WebSocket:', error);
@@ -252,52 +274,133 @@ function handleMetricsUpdate(data) {
 }
 
 // ============================================
+// FALLBACK POLLING (when WebSocket fails)
+// ============================================
+
+function startFallbackPolling() {
+    // Avoid duplicate polling intervals
+    if (state.fallbackPolling) {
+        return;
+    }
+    
+    console.log('🔄 Starting fallback polling (WebSocket disconnected)...');
+    
+    // Poll every 2 seconds
+    state.fallbackPolling = setInterval(async () => {
+        try {
+            const response = await fetch(`${API_BASE}/cameras/metrics/latest`);
+            if (response.ok) {
+                const data = await response.json();
+                console.log('📡 Fallback polling data received:', data);
+                handleMetricsUpdate(data);
+            }
+        } catch (error) {
+            console.warn('⚠️ Fallback polling failed:', error.message);
+        }
+    }, 2000);
+    
+    console.log('✅ Fallback polling started (2s interval)');
+}
+
+function stopFallbackPolling() {
+    if (state.fallbackPolling) {
+        clearInterval(state.fallbackPolling);
+        state.fallbackPolling = null;
+        console.log('⏹️ Fallback polling stopped (WebSocket reconnected)');
+    }
+}
+
+// ============================================
 // ALERT SYSTEM
 // ============================================
 
 function checkForAlerts(data) {
     const now = Date.now();
     
-    // Check camera metrics for high risk
-    if (data.camera_metrics) {
-        data.camera_metrics.forEach(metric => {
-            // Generate alert for high risk (>= 0.6)
-            if (metric.risk_level >= 0.6) {
-                const severity = metric.risk_level >= 0.9 ? 'high' : 
-                               metric.risk_level >= 0.7 ? 'high' : 'medium';
-                
-                addAlert({
-                    type: severity,
-                    title: metric.risk_level >= 0.9 ? '🚨 CRITICAL: Stampede Risk!' : 
-                           metric.risk_level >= 0.7 ? '⚠️ High Crowd Density' : 
-                           'ℹ️ Elevated Risk Level',
-                    location: getCameraName(metric.camera_id),
-                    cameraId: metric.camera_id,
-                    people: metric.people_count,
-                    density: metric.density || 0,
-                    risk: metric.risk_level,
-                    timestamp: now
-                });
-            }
-        });
-    }
+    // CRITICAL FIX: Process alerts from both old and new data formats
+    const camerasData = data.cameras || {};
+    const cameraMetricsArray = data.camera_metrics || [];
     
-    // Check area metrics
-    if (data.area_metrics) {
-        data.area_metrics.forEach(metric => {
-            if (metric.risk_level >= 0.7) {
-                addAlert({
-                    type: 'high',
-                    title: metric.risk_level >= 0.9 ? '🚨 AREA CRITICAL' : '⚠️ Area Overcrowding',
-                    location: getAreaName(metric.area_id),
-                    areaId: metric.area_id,
-                    people: metric.total_people,
-                    risk: metric.risk_level,
-                    timestamp: now
-                });
-            }
-        });
-    }
+    // Check NEW FORMAT: data.cameras object
+    Object.entries(camerasData).forEach(([cameraId, metric]) => {
+        const riskScore = metric.risk_score || 0;  // CRITICAL FIX: Use risk_score (0-100)
+        
+        // Generate alert for high risk (>= 60)
+        if (riskScore >= 60) {
+            const severity = riskScore >= 90 ? 'high' : 
+                           riskScore >= 70 ? 'high' : 'medium';
+            
+            addAlert({
+                type: severity,
+                title: riskScore >= 90 ? '🚨 CRITICAL: Stampede Risk!' : 
+                       riskScore >= 70 ? '⚠️ High Crowd Density' : 
+                       'ℹ️ Elevated Risk Level',
+                location: getCameraName(cameraId),
+                cameraId: cameraId,
+                people: metric.people_count,
+                density: Math.round((metric.density || 0) * 100),  // CRITICAL FIX: Convert 0-1 to percentage
+                risk: riskScore,  // CRITICAL FIX: Now using 0-100 scale
+                timestamp: now
+            });
+        }
+    });
+    
+    // Check OLD FORMAT: data.camera_metrics array (backwards compatibility)
+    cameraMetricsArray.forEach(metric => {
+        const riskScore = metric.risk_score || 0;
+        
+        if (riskScore >= 60) {
+            const severity = riskScore >= 90 ? 'high' : 
+                           riskScore >= 70 ? 'high' : 'medium';
+            
+            addAlert({
+                type: severity,
+                title: riskScore >= 90 ? '🚨 CRITICAL: Stampede Risk!' : 
+                       riskScore >= 70 ? '⚠️ High Crowd Density' : 
+                       'ℹ️ Elevated Risk Level',
+                location: getCameraName(metric.camera_id),
+                cameraId: metric.camera_id,
+                people: metric.people_count,
+                density: Math.round((metric.density || 0) * 100),
+                risk: riskScore,
+                timestamp: now
+            });
+        }
+    });
+    
+    // Check area metrics (both formats)
+    const areasData = data.areas || {};
+    const areaMetricsArray = data.area_metrics || [];
+    
+    Object.entries(areasData).forEach(([areaId, metric]) => {
+        const riskScore = metric.risk_score || 0;
+        if (riskScore >= 70) {
+            addAlert({
+                type: 'high',
+                title: riskScore >= 90 ? '🚨 AREA CRITICAL' : '⚠️ Area Overcrowding',
+                location: getAreaName(areaId),
+                areaId: areaId,
+                people: metric.total_people,
+                risk: riskScore,
+                timestamp: now
+            });
+        }
+    });
+    
+    areaMetricsArray.forEach(metric => {
+        const riskScore = metric.risk_score || 0;
+        if (riskScore >= 70) {
+            addAlert({
+                type: 'high',
+                title: riskScore >= 90 ? '🚨 AREA CRITICAL' : '⚠️ Area Overcrowding',
+                location: getAreaName(metric.area_id),
+                areaId: metric.area_id,
+                people: metric.total_people,
+                risk: riskScore,
+                timestamp: now
+            });
+        }
+    });
 }
 
 function addAlert(alert) {
@@ -320,7 +423,8 @@ function addAlert(alert) {
         updateAlertsDisplay();
         
         // Play alert sound for high priority alerts
-        if (alert.type === 'high' && alert.risk >= 0.8) {
+        // CRITICAL FIX: Use risk_score scale (0-100) instead of 0-1
+        if (alert.type === 'high' && alert.risk >= 80) {
             playAlertSound();
         }
         
@@ -422,28 +526,77 @@ function updateLiveStats() {
     
     // Update chart with real-time data from WebSocket
     if (window.densityChart && state.cameras.length > 0) {
-        const stats = calculateAggregateStats();
-        const totalPeople = stats.totalPeople;
-        const avgDensity = stats.avgDensity;
-        
-        // Add time label
         const now = new Date();
         const timeLabel = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
         
-        // Update chart data
+        // Initialize chart datasets if empty
+        if (window.densityChart.data.datasets.length === 0) {
+            const colors = ['#00ffcc', '#ff6b6b', '#4ecdc4', '#ffe66d', '#a8e6cf', '#ff8b94'];
+            
+            state.cameras.forEach((camera, index) => {
+                window.densityChart.data.datasets.push({
+                    label: camera.name || camera.camera_id,
+                    data: [],
+                    borderColor: colors[index % colors.length],
+                    backgroundColor: colors[index % colors.length] + '20',
+                    tension: 0.4,
+                    fill: false,
+                    pointRadius: 0,
+                    borderWidth: 2
+                });
+            });
+            
+            // Add average line
+            window.densityChart.data.datasets.push({
+                label: 'Average',
+                data: [],
+                borderColor: '#ffffff',
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                tension: 0.4,
+                fill: false,
+                pointRadius: 0,
+                borderWidth: 3,
+                borderDash: [5, 5]
+            });
+        }
+        
+        // Add time label
         if (!window.densityChart.data.labels) {
             window.densityChart.data.labels = [];
         }
-        
         window.densityChart.data.labels.push(timeLabel);
-        window.densityChart.data.datasets[0].data.push(totalPeople);
-        window.densityChart.data.datasets[1].data.push(avgDensity);
+        
+        // Update each camera's density
+        let totalDensity = 0;
+        let cameraCount = 0;
+        
+        state.cameras.forEach((camera, index) => {
+            const metric = state.metrics[camera.camera_id];
+            if (metric && window.densityChart.data.datasets[index]) {
+                const densityPercent = Math.round((metric.density || 0) * 100);
+                window.densityChart.data.datasets[index].data.push(densityPercent);
+                totalDensity += densityPercent;
+                cameraCount++;
+            } else if (window.densityChart.data.datasets[index]) {
+                window.densityChart.data.datasets[index].data.push(0);
+            }
+        });
+        
+        // Update average line (last dataset)
+        const avgDensity = cameraCount > 0 ? Math.round(totalDensity / cameraCount) : 0;
+        const avgDatasetIndex = window.densityChart.data.datasets.length - 1;
+        if (window.densityChart.data.datasets[avgDatasetIndex]) {
+            window.densityChart.data.datasets[avgDatasetIndex].data.push(avgDensity);
+        }
         
         // Keep only last 60 points (1 minute of data at 1Hz)
         if (window.densityChart.data.labels.length > 60) {
             window.densityChart.data.labels.shift();
-            window.densityChart.data.datasets[0].data.shift();
-            window.densityChart.data.datasets[1].data.shift();
+            window.densityChart.data.datasets.forEach(dataset => {
+                if (dataset.data.length > 60) {
+                    dataset.data.shift();
+                }
+            });
         }
         
         window.densityChart.update('none'); // Update without animation for performance
@@ -484,8 +637,8 @@ function updateCameraFeeds() {
                  onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'100\\' height=\\'100\\'%3E%3Ctext x=\\'50%25\\' y=\\'50%25\\' text-anchor=\\'middle\\'%3ENo Signal%3C/text%3E%3C/svg%3E'">
             <div class="feed-stats">
                 <span>👥 ${metric.people_count || 0} people</span>
-                <span class="risk-badge risk-${getRiskClass(metric.risk_level || 0)}">
-                    Risk: ${((metric.risk_level || 0) * 100).toFixed(0)}%
+                <span class="risk-badge risk-${getRiskClass(metric.risk_score || 0)}">
+                    Risk: ${(metric.risk_score || 0).toFixed(0)}%
                 </span>
             </div>
         `;
@@ -508,9 +661,20 @@ function updateCameraFeedStats() {
     cameraFeeds.forEach(feedDiv => {
         const cameraId = feedDiv.getAttribute('data-camera-id');
         const metric = state.metrics[cameraId] || {};
+        const riskScore = metric.risk_score || 0;
+        
+        // Update border color based on risk
+        let borderColor = '#00ff88'; // green
+        if (riskScore >= 70) {
+            borderColor = '#ff4444'; // red
+        } else if (riskScore >= 40) {
+            borderColor = '#ffaa00'; // yellow/orange
+        }
+        feedDiv.style.border = `3px solid ${borderColor}`;
+        feedDiv.style.boxShadow = `0 0 20px ${borderColor}40`;
         
         if (metric.people_count !== undefined) {
-            console.log(`📊 Updating ${cameraId}: ${metric.people_count} people, risk ${((metric.risk_level || 0) * 100).toFixed(0)}%`);
+            console.log(`📊 Updating ${cameraId}: ${metric.people_count} people, risk ${riskScore.toFixed(0)}%`);
         }
         
         // Update people count
@@ -526,19 +690,19 @@ function updateCameraFeedStats() {
         const riskBadge = feedDiv.querySelector('.risk-badge');
         if (riskBadge) {
             // Backend sends risk_score as 0-100, not 0-1
-            let riskScore = metric.risk_score;
+            let badgeRiskScore = metric.risk_score;
             
             // Validate it's a number
-            if (typeof riskScore !== 'number' || isNaN(riskScore)) {
-                riskScore = 0;
+            if (typeof badgeRiskScore !== 'number' || isNaN(badgeRiskScore)) {
+                badgeRiskScore = 0;
                 console.warn(`⚠️ Invalid risk_score for ${cameraId}:`, metric.risk_score);
             }
             
-            const riskPercent = Math.round(riskScore);
+            const riskPercent = Math.round(badgeRiskScore);
             riskBadge.textContent = `Risk: ${riskPercent}%`;
             
-            // Update risk class for color (convert 0-100 to 0-1 for getRiskClass)
-            riskBadge.className = `risk-badge risk-${getRiskClass(riskScore / 100)}`;
+            // Update risk class for color - CRITICAL FIX: getRiskClass now accepts 0-100
+            riskBadge.className = `risk-badge risk-${getRiskClass(badgeRiskScore)}`;
         }
         
         // DEBUG: Add visible overlay text on video showing risk_score
@@ -552,13 +716,13 @@ function updateCameraFeedStats() {
         }
         
         // Use risk_score (0-100) from backend
-        let riskScore = metric.risk_score;
-        if (typeof riskScore !== 'number' || isNaN(riskScore)) {
-            riskScore = 0;
+        let debugRiskScore = metric.risk_score;
+        if (typeof debugRiskScore !== 'number' || isNaN(debugRiskScore)) {
+            debugRiskScore = 0;
         }
-        const riskPercent = Math.round(riskScore);
+        const debugRiskPercent = Math.round(debugRiskScore);
         
-        debugOverlay.textContent = `COUNT: ${metric.people_count || 0}\nRISK: ${riskPercent}%`;
+        debugOverlay.textContent = `COUNT: ${metric.people_count || 0}\nRISK: ${debugRiskPercent}%`;
         debugOverlay.style.whiteSpace = 'pre-line';
     });
 }
@@ -668,17 +832,26 @@ async function deleteCamera(cameraId) {
     }
 }
 
-function updateAlertsDisplay() {
+function updateAlertsDisplay(filter = 'all') {
     const alertsLists = document.querySelectorAll('.alerts-list');
     
     alertsLists.forEach(alertsList => {
         alertsList.innerHTML = '';
         
+        // Filter alerts based on priority
+        let filteredAlerts = state.alerts;
+        if (filter !== 'all') {
+            filteredAlerts = state.alerts.filter(a => a.type === filter);
+        }
+        
         // Show latest 10 alerts
-        const displayAlerts = state.alerts.slice(0, 10);
+        const displayAlerts = filteredAlerts.slice(0, 10);
         
         if (displayAlerts.length === 0) {
-            alertsList.innerHTML = '<p style="color: #33cc88; padding: 20px; text-align: center;">✅ No active alerts - All systems normal</p>';
+            const message = filter === 'all' 
+                ? '✅ No active alerts - All systems normal' 
+                : `✅ No ${filter} priority alerts`;
+            alertsList.innerHTML = `<p style="color: #33cc88; padding: 20px; text-align: center;">${message}</p>`;
             return;
         }
         
@@ -713,33 +886,119 @@ function updateAlertsDisplay() {
 function calculateAggregateStats() {
     let totalPeople = 0;
     let totalDensity = 0;
-    let totalRisk = 0;
     let activeCameras = 0;
-    let camerasWithMetrics = 0;
+    let cameraCount = 0;
     
-    state.cameras.forEach(camera => {
-        const metric = state.metrics[camera.camera_id];
-        if (metric) {
+    Object.entries(state.metrics).forEach(([cameraId, metric]) => {
+        if (metric && metric.people_count !== undefined) {
             totalPeople += metric.people_count || 0;
-            totalDensity += (metric.density || 0) * 100;
-            totalRisk += metric.risk_level || 0;
-            camerasWithMetrics++;
-        }
-        if (camera.status === 'running') {
-            activeCameras++;
+            totalDensity += (metric.density || 0) * 100;  // CRITICAL FIX: Convert 0-1 to percentage
+            cameraCount++;
+            
+            if (metric.status === 'running') {
+                activeCameras++;
+            }
         }
     });
     
-    const count = camerasWithMetrics || 1;
-    
-    const stats = {
+    return {
         totalPeople,
-        avgDensity: Math.round(totalDensity / count),
-        avgRisk: totalRisk / count,
+        avgDensity: cameraCount > 0 ? Math.round(totalDensity / cameraCount) : 0,
+        activeCameras: activeCameras || state.cameras.filter(c => c.is_alive).length
+    };
+}
+
+function initializeDensityChart() {
+    // CRITICAL FIX: Pre-populate chart with camera datasets so it shows before WebSocket connects
+    if (!window.densityChart || state.cameras.length === 0) {
+        return;
+    }
+    
+    // Only initialize if chart is empty
+    if (window.densityChart.data.datasets.length > 0) {
+        return;
+    }
+    
+    console.log('📊 Initializing density chart with', state.cameras.length, 'cameras');
+    
+    const colors = ['#00ffcc', '#ff6b6b', '#4ecdc4', '#ffe66d', '#a8e6cf', '#ff8b94'];
+    
+    // Add dataset for each camera
+    state.cameras.forEach((camera, index) => {
+        window.densityChart.data.datasets.push({
+            label: camera.name || camera.camera_id,
+            data: [],
+            borderColor: colors[index % colors.length],
+            backgroundColor: colors[index % colors.length] + '20',
+            tension: 0.4,
+            fill: false,
+            pointRadius: 0,
+            borderWidth: 2
+        });
+    });
+    
+    // Add average line
+    window.densityChart.data.datasets.push({
+        label: 'Average',
+        data: [],
+        borderColor: '#ffffff',
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        tension: 0.4,
+        fill: false,
+        pointRadius: 0,
+        borderWidth: 3,
+        borderDash: [5, 5]
+    });
+    
+    window.densityChart.update('none');
+    console.log('✅ Chart initialized with', window.densityChart.data.datasets.length, 'datasets');
+}
+
+function calculateAggregateStats() {
+    let totalPeople = 0;
+    let totalDensity = 0;
+    let activeCameras = 0;
+    let cameraCount = 0;
+    
+    Object.entries(state.metrics).forEach(([cameraId, metric]) => {
+        if (metric && metric.people_count !== undefined) {
+            totalPeople += metric.people_count || 0;
+            totalDensity += (metric.density || 0) * 100;  // CRITICAL FIX: Convert 0-1 to percentage
+            cameraCount++;
+            
+            if (metric.status === 'running') {
+                activeCameras++;
+            }
+        }
+    });
+    
+    // Fallback to camera status if no metrics
+    if (activeCameras === 0) {
+        activeCameras = state.cameras.filter(c => c.is_alive || c.status === 'running').length;
+    }
+    
+    return {
+        totalPeople,
+        avgDensity: cameraCount > 0 ? Math.round(totalDensity / cameraCount) : 0,
         activeCameras
     };
+}
+
+function setProgress(percent) {
+    const circle = document.querySelector('.progress-ring-circle');
+    if (!circle) return;
     
-    return stats;
+    const radius = circle.r.baseVal.value;
+    const circumference = radius * 2 * Math.PI;
+    const offset = circumference - (percent / 100) * circumference;
+    
+    circle.style.strokeDasharray = `${circumference} ${circumference}`;
+    circle.style.strokeDashoffset = offset;
+    
+    const percentElement = document.querySelector('.progress-content .percentage');
+    if (percentElement) {
+        percentElement.textContent = `${Math.round(percent)}%`;
+    }
 }
 
 function populateCameraSelector() {
@@ -809,9 +1068,10 @@ function getDensityLabel(density) {
 }
 
 function getRiskClass(risk) {
-    if (risk >= 0.8) return 'critical';
-    if (risk >= 0.6) return 'high';
-    if (risk >= 0.4) return 'medium';
+    // CRITICAL FIX: Now accepts risk_score (0-100) instead of risk_level (0-1)
+    if (risk >= 80) return 'critical';
+    if (risk >= 60) return 'high';
+    if (risk >= 40) return 'medium';
     return 'low';
 }
 

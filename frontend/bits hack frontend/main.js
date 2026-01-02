@@ -67,34 +67,23 @@ const densityChart = new Chart(ctx, {
     type: 'line',
     data: {
         labels: labels,
-        datasets: [
-            {
-                label: 'Count',
-                data: countData,
-                borderColor: '#00ffcc',
-                tension: 0.4,
-                fill: false,
-                yAxisID: 'y-count',
-                pointRadius: 0
-            },
-            {
-                label: 'Density',
-                data: densityData,
-                borderColor: '#44bb44',
-                tension: 0.4,
-                fill: false,
-                yAxisID: 'y-density',
-                pointRadius: 0
-            }
-        ]
+        datasets: []  // Will be populated dynamically per camera
     },
     options: {
         responsive: true,
         maintainAspectRatio: false,
+        interaction: {
+            mode: 'index',
+            intersect: false
+        },
         plugins: {
             legend: {
                 position: 'bottom',
-                labels: { color: 'rgba(255, 255, 255, 0.7)' }
+                labels: { 
+                    color: 'rgba(255, 255, 255, 0.7)',
+                    font: { size: 11 },
+                    padding: 10
+                }
             },
             title: {
                 display: true,
@@ -112,23 +101,27 @@ const densityChart = new Chart(ctx, {
             }
         },
         scales: {
-            'y-count': {
+            y: {
                 type: 'linear',
                 position: 'left',
                 beginAtZero: true,
+                max: 100,
                 grid: { color: 'rgba(255, 255, 255, 0.1)' },
-                ticks: { color: 'rgba(255, 255, 255, 0.7)' }
-            },
-            'y-density': {
-                type: 'linear',
-                position: 'right',
-                beginAtZero: true,
-                grid: { color: 'rgba(255, 255, 255, 0.1)' },
-                ticks: { color: 'rgba(255, 255, 255, 0.7)' }
+                ticks: { 
+                    color: 'rgba(255, 255, 255, 0.7)',
+                    callback: function(value) {
+                        return value + '%';
+                    }
+                },
+                title: {
+                    display: true,
+                    text: 'Density (%)',
+                    color: 'rgba(255, 255, 255, 0.7)'
+                }
             },
             x: {
                 grid: { color: 'rgba(255, 255, 255, 0.1)' },
-                ticks: { color: 'rgba(255, 255, 255, 0.7)', maxTicksLimit: 24 }
+                ticks: { color: 'rgba(255, 255, 255, 0.7)', maxTicksLimit: 12 }
             }
         },
         animation: { duration: 0 }

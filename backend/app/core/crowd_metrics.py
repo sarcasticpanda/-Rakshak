@@ -204,11 +204,11 @@ class CrowdMetrics:
         """
         Normalize density to 0-1
         0 = sparse (<2 people/100k)
-        1 = very dense (>15 people/100k)
+        1 = very dense (>30 people/100k)
         """
         density = self._calculate_density(count, frame_shape)
-        # Clamp between 0-15, then normalize
-        return min(density / 15.0, 1.0)
+        # Clamp between 0-30, then normalize
+        return min(density / 30.0, 1.0)
     
     # ========================================
     # METRIC 2: COMPRESSION

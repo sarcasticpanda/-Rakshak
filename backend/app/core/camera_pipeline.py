@@ -78,6 +78,7 @@ class CameraMetrics:
     
     # Crowd metrics
     density: float = 0.0
+    density_normalized: float = 0.0  # 0-1 range for percentage display
     compression: float = 0.0
     velocity_variance: float = 0.0
     flow_collision: float = 0.0
@@ -383,6 +384,10 @@ class CameraPipeline:
         # Calculate latency
         latency_ms = (time.time() - process_start) * 1000
         
+        # DEBUG: Log density values
+        if self.camera_id == 'cam_stampede':  # Only log for one camera
+            print(f"[Pipeline:{self.camera_id}] density={metrics_dict.get('density', 'N/A')}, density_normalized={metrics_dict.get('density_normalized', 'N/A')}")
+        
         # Build metrics object
         camera_metrics = CameraMetrics(
             camera_id=self.camera_id,
@@ -392,6 +397,7 @@ class CameraPipeline:
             risk_score=risk_score,
             risk_level=risk_level,
             density=metrics_dict['density'],
+            density_normalized=metrics_dict['density_normalized'],
             compression=metrics_dict['compression'],
             velocity_variance=metrics_dict['velocity_variance'],
             flow_collision=metrics_dict.get('flow_collision', 0),
@@ -402,6 +408,9 @@ class CameraPipeline:
             latency_ms=latency_ms,
             status=self.status.value
         )
+        
+        if self.camera_id == 'cam_stampede':  # Debug
+            print(f"[Pipeline:{self.camera_id}] CameraMetrics object density_normalized = {camera_metrics.density_normalized}")
         
         # Update current state (thread-safe)
         with self._lock:
