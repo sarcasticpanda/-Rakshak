@@ -49,10 +49,10 @@ def run_camera_pipeline(config: CameraConfig, stop_event: Event):
         pipeline.start()
         shared_store.update_status(config.camera_id, "running")
         
-        # Wait for first frame (up to 5 seconds)
+        # Wait for first frame (up to 15 seconds - YOLO loading is slow)
         print(f"[CameraLifecycle:{config.camera_id}] Waiting for first frame...")
         wait_start = time.time()
-        while time.time() - wait_start < 5.0:
+        while time.time() - wait_start < 15.0:
             if pipeline.get_frame() is not None:
                 print(f"[CameraLifecycle:{config.camera_id}] ✅ First frame ready")
                 break

@@ -4,6 +4,7 @@ Detects people using YOLOv8 with GPU acceleration
 """
 import cv2
 import numpy as np
+import threading
 from ultralytics import YOLO
 from typing import List, Tuple, Optional
 from app.utils.config import (
@@ -15,6 +16,13 @@ from app.utils.config import (
     MAX_BOX_WIDTH, MAX_BOX_WIDTH_RATIO
 )
 
+# Global lock for CUDA inference (prevents deadlocks with multiple threads)
+_cuda_inference_lock = threading.Lock()
+
+# Global shared model cache (prevents multiple loads)
+_global_model = None
+_global_model_lock = threading.Lock()
+
 
 class PersonDetector:
     """YOLO-based person detector"""
@@ -24,37 +32,35 @@ class PersonDetector:
     
     def __init__(
         self,
-        model_name: str = YOLO_MODEL,
         conf_threshold: float = YOLO_CONF_THRESHOLD,
-        iou_threshold: float = YOLO_IOU_THRESHOLD,
-        device: str = YOLO_DEVICE
+        iou_threshold: float = YOLO_IOU_THRESHOLD
     ):
         """
-        Initialize YOLO detector
+        Initialize YOLO detector.
+        Uses shared global model to avoid multiple loads.
         
         Args:
-            model_name: YOLOv8 model (yolov8n, yolov8s, yolov8m, yolov8l, yolov8x)
             conf_threshold: Confidence threshold (0.0-1.0)
             iou_threshold: NMS IOU threshold
-            device: 'cuda' or 'cpu'
         """
-        self.model_name = model_name
+        global _global_model
+        
         self.conf_threshold = conf_threshold
         self.iou_threshold = iou_threshold
-        self.device = device
+        
+        # Load or get cached global model
+        with _global_model_lock:
+            if _global_model is None:
+                print(f"[PersonDetector] Loading {YOLO_MODEL} on {YOLO_DEVICE}...")
+                _global_model = YOLO(YOLO_MODEL)
+                _global_model.to(YOLO_DEVICE)
+                print(f"[PersonDetector] Model loaded successfully")
+            
+            self.model = _global_model
+            self.device = YOLO_DEVICE
         
         if VERBOSE:
-            print(f"[PersonDetector] Loading {model_name} on {device}...")
-        
-        # Load YOLO model
-        self.model = YOLO(model_name)
-        
-        # Move to GPU if available
-        if device == 'cuda':
-            self.model.to(device)
-        
-        if VERBOSE:
-            print(f"[PersonDetector] Model loaded successfully")
+            print(f"[PersonDetector] Initialized with conf={self.conf_threshold}, iou={self.iou_threshold} on {self.device}")
     
     def detect(self, frame: np.ndarray, adaptive: bool = True) -> List[dict]:
         """
@@ -78,17 +84,19 @@ class PersonDetector:
         frame_h, frame_w = frame.shape[:2]
         frame_area = frame_h * frame_w
         
-        initial_results = self.model.predict(
-            source=frame,
-            conf=self.conf_threshold,
-            iou=self.iou_threshold,
-            classes=[0],
-            max_det=1500,
-            imgsz=1920,
-            half=True,
-            device=self.model.device,
-            verbose=False
-        )
+        # Use lock to prevent CUDA threading issues
+        with _cuda_inference_lock:
+            initial_results = self.model.predict(
+                source=frame,
+                conf=self.conf_threshold,
+                iou=self.iou_threshold,
+                classes=[0],
+                max_det=1500,
+                imgsz=1920,
+                half=True,
+                device=self.model.device,
+                verbose=False
+            )
         
         # Count initial detections
         initial_count = len(initial_results[0].boxes) if initial_results else 0
@@ -103,30 +111,32 @@ class PersonDetector:
         
         if adaptive and is_dense:
             # DENSE STAMPEDE MODE: More aggressive detection
-            results = self.model.predict(
-                source=frame,
-                conf=0.01,          # Very low confidence for packed crowds
-                iou=0.25,           # Lower IoU to allow more overlapping detections
-                classes=[0],
-                max_det=2000,       # Increase max detections
-                imgsz=1920,
-                half=True,
-                device=self.model.device,
-                verbose=False
-            )
+            with _cuda_inference_lock:
+                results = self.model.predict(
+                    source=frame,
+                    conf=0.01,          # Very low confidence for packed crowds
+                    iou=0.25,           # Lower IoU to allow more overlapping detections
+                    classes=[0],
+                    max_det=2000,       # Increase max detections
+                    imgsz=1920,
+                    half=True,
+                    device=self.model.device,
+                    verbose=False
+                )
         else:
             # SPARSE MODE: Conservative settings (avoid double boxes)
-            results = self.model.predict(
-                source=frame,
-                conf=self.conf_threshold,  # 0.02 - normal confidence
-                iou=self.iou_threshold,    # 0.35 - aggressive NMS to prevent duplicates
-                classes=[0],
-                max_det=1500,
-                imgsz=1920,
-                half=True,
-                device=self.model.device,
-                verbose=False
-            )
+            with _cuda_inference_lock:
+                results = self.model.predict(
+                    source=frame,
+                    conf=self.conf_threshold,  # 0.02 - normal confidence
+                    iou=self.iou_threshold,    # 0.35 - aggressive NMS to prevent duplicates
+                    classes=[0],
+                    max_det=1500,
+                    imgsz=1920,
+                    half=True,
+                    device=self.model.device,
+                    verbose=False
+                )
         
         detections = []
         

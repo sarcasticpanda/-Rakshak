@@ -8,11 +8,12 @@ from contextlib import asynccontextmanager
 import uvicorn
 import multiprocessing
 
-from app.api import cameras, streams, websocket, health, areas, history
+from app.api import cameras, streams, websocket, health, areas, history, analytics
 from app.core.metrics_aggregator import metrics_aggregator
 from app.core.camera_lifecycle import camera_manager
 from app.core.area_risk_engine import area_risk_engine
 from app.core.metrics_writer import metrics_writer
+from app.analytics.aggregator import hourly_aggregator
 from app.db.connection import init_db, close_db, get_database
 from app.db.repositories import CameraRepository, AreaRepository
 from app.core.camera_pipeline import CameraConfig
@@ -50,6 +51,10 @@ async def lifespan(app: FastAPI):
     await metrics_aggregator.start()
     print("[Startup] ✅ Metrics aggregator running @ 1Hz")
     
+    print("[Startup] Starting hourly aggregator (analytics)...")
+    await hourly_aggregator.start()
+    print("[Startup] ✅ Hourly aggregator running")
+    
     print("\n" + "=" * 60)
     print("✅ Server ready!")
     print("=" * 60)
@@ -58,6 +63,7 @@ async def lifespan(app: FastAPI):
     print("  • Cameras: http://localhost:8000/cameras")
     print("  • Areas: http://localhost:8000/areas")
     print("  • History: http://localhost:8000/history/cameras/{id}")
+    print("  • Analytics: http://localhost:8000/analytics/{type}/{id}/trends")
     print("  • MJPEG Stream: http://localhost:8000/stream/{camera_id}")
     print("  • WebSocket: ws://localhost:8000/ws/metrics")
     print("  • Health: http://localhost:8000/health")
@@ -68,7 +74,9 @@ async def lifespan(app: FastAPI):
     yield
     
     # Shutdown
-    print("\n[Shutdown] Stopping metrics writer...")
+    print("\n[Shutdown] Stopping hourly aggregator...")
+    await hourly_aggregator.stop()
+    print("[Shutdown] Stopping metrics writer...")
     await metrics_writer.stop()
     print("[Shutdown] Stopping metrics aggregator...")
     await metrics_aggregator.stop()
@@ -185,6 +193,7 @@ app.add_middleware(
 app.include_router(cameras.router)
 app.include_router(areas.router)
 app.include_router(history.router)
+app.include_router(analytics.router)
 app.include_router(streams.router)
 app.include_router(websocket.router)
 app.include_router(health.router)

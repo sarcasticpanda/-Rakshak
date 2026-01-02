@@ -216,6 +216,31 @@ body {
     box-shadow: 0 0 0 3px rgba(0, 179, 134, 0.5);
 }
 
+.clear-selection-btn {
+    background: linear-gradient(45deg, #00b386, #00d4a0);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: var(--transition);
+    box-shadow: 0 4px 12px rgba(0, 179, 134, 0.3);
+    margin-left: 12px;
+    display: none;
+}
+
+.clear-selection-btn:hover {
+    background: linear-gradient(45deg, #00d4a0, #00e6b0);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 179, 134, 0.5);
+}
+
+.clear-selection-btn:active {
+    transform: translateY(0);
+}
+
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -765,3 +790,135 @@ body {
 .stat-card, .chart-card, .total-visitors-box, .progress-box, .alert-item, .camera-feed, .camera-item {
     will-change: transform, box-shadow;
 }
+
+/* Connection Status Indicator */
+.connection-status {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: var(--transition);
+}
+
+.connection-status.connected {
+    color: var(--alert-low);
+    background: rgba(51, 204, 136, 0.1);
+    border: 1px solid var(--alert-low);
+}
+
+.connection-status.disconnected {
+    color: var(--alert-high);
+    background: rgba(255, 51, 51, 0.1);
+    border: 1px solid var(--alert-high);
+}
+
+/* Live Feed Styles */
+.feed-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.status {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status.online {
+    color: var(--alert-low);
+    background: rgba(51, 204, 136, 0.1);
+}
+
+.status.offline {
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.feed-image {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    border-radius: 8px;
+    background: var(--background);
+}
+
+.feed-stats {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.risk-badge {
+    padding: 4px 8px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.8rem;
+}
+
+.risk-badge.risk-low {
+    background: rgba(51, 204, 136, 0.2);
+    color: var(--alert-low);
+}
+
+.risk-badge.risk-medium {
+    background: rgba(255, 170, 0, 0.2);
+    color: var(--alert-medium);
+}
+
+.risk-badge.risk-high {
+    background: rgba(255, 51, 51, 0.2);
+    color: var(--alert-high);
+}
+
+.risk-badge.risk-critical {
+    background: rgba(255, 51, 51, 0.3);
+    color: #ff6666;
+    animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* Camera Management Status */
+.status-running {
+    color: var(--alert-low);
+    font-weight: 600;
+}
+
+.status-offline {
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+/* Camera Grid Layout */
+.camera-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 20px;
+    padding: 20px;
+}
+
+.camera-feed {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 20px;
+    cursor: pointer;
+    transition: var(--transition);
+    border: 1px solid var(--border);
+}
+
+.camera-feed:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+    border-color: var(--primary);
+}
+

@@ -23,12 +23,12 @@ class RobustDetectionPipeline:
         # Base detector
         self.detector = PersonDetector()
         
-        # Temporal validator
+        # Temporal validator - OPTIMIZED for dense crowds (max recall)
         self.temporal_validator = TemporalDetectionValidator(
             temporal_window=5,      # Look at last 5 frames
-            min_appearances=3,       # Must appear in 3/5 frames
-            max_jump_distance=150,   # Max 150px movement per frame
-            duplicate_iou_threshold=0.4  # 40% IoU = duplicate
+            min_appearances=2,      # LOWERED from 3 - less strict for dense crowds
+            max_jump_distance=200,  # INCREASED from 150 - allow more movement
+            duplicate_iou_threshold=0.5  # INCREASED from 0.4 - only remove obvious duplicates
         )
         
         # Heatmap (initialized on first frame)
@@ -42,11 +42,11 @@ class RobustDetectionPipeline:
         # Detection history for density estimation
         self.recent_counts = []
         
-        # Heatmap configuration
+        # Heatmap configuration (LOWERED thresholds to prevent false rejections)
         self.heatmap_config = {
-            'sparse_threshold': 0.4,   # Strict for sparse
-            'medium_threshold': 0.3,   # Balanced
-            'dense_threshold': 0.2,    # Lenient for dense
+            'sparse_threshold': 0.15,  # Was 0.4 - too strict
+            'medium_threshold': 0.10,  # Was 0.3 - too strict
+            'dense_threshold': 0.05,   # Was 0.2 - too strict
             'gap_fill_heat_min': 0.5,  # Strong peaks only
             'gap_fill_distance': 60,   # Peak separation
             'gap_fill_max': 50,        # Safety limit
@@ -83,16 +83,14 @@ class RobustDetectionPipeline:
         # Step 2: Run YOLO with adaptive settings
         raw_detections = self._adaptive_yolo_detection(frame, mode)
         
-        # Step 2.5: Update heatmap every 2 frames (15-20% faster)
-        # Visual smoothness doesn't require every-frame updates
-        if self.enable_heatmap and self.frame_count % 2 == 0:
-            self.heatmap.update(raw_detections)
+        # Step 2.5: Heatmap update DISABLED
+        # Heatmap completely disabled to restore full detection counts
+        # if self.enable_heatmap and self.frame_count % 2 == 0:
+        #     self.heatmap.update(raw_detections)
         
-        # Step 3: Heatmap validation (if enabled and bootstrapped)
-        if self.enable_heatmap and self.heatmap.is_bootstrapped(self.heatmap_config['bootstrap_frames']):
-            heatmap_validated = self._heatmap_validation(raw_detections, mode)
-        else:
-            heatmap_validated = raw_detections
+        # Step 3: Heatmap validation DISABLED - was causing 40%+ detection drops
+        # Skip heatmap validation entirely to preserve full detection counts
+        heatmap_validated = raw_detections
         
         # Step 4: Temporal validation (remove noise, duplicates)
         validated_detections = self.temporal_validator.validate_detections(
@@ -100,11 +98,9 @@ class RobustDetectionPipeline:
             self.frame_count
         )
         
-        # Step 5: Gap filling (dense mode only, if heatmap enabled)
-        if self.enable_heatmap and mode == "dense" and self.heatmap.is_bootstrapped():
-            filled_detections = self._fill_detection_gaps(validated_detections)
-        else:
-            filled_detections = validated_detections
+        # Step 5: Gap filling DISABLED (heatmap disabled)
+        # No gap filling needed - YOLO detections are already complete
+        filled_detections = validated_detections
         
         # Step 7: Update history
         self.recent_counts.append(len(filled_detections))
@@ -131,14 +127,14 @@ class RobustDetectionPipeline:
         Use recent history for stability
         """
         if self.frame_count <= 10:
-            # Bootstrap: Use quick low-confidence scan
+            # Bootstrap: Use quick low-confidence scan at HIGH RESOLUTION
             bootstrap_dets = self.detector.model.predict(
                 source=frame,
                 conf=0.01,
                 iou=0.3,
                 classes=[0],
                 max_det=1500,
-                imgsz=1280,
+                imgsz=1920,  # HIGH RES for accurate bootstrap count
                 half=True,
                 device=self.detector.device,
                 verbose=False
@@ -163,43 +159,43 @@ class RobustDetectionPipeline:
     
     def _adaptive_yolo_detection(self, frame: np.ndarray, mode: str) -> List[Dict]:
         """
-        Run YOLO with mode-specific settings
+        Run YOLO with mode-specific settings - OPTIMIZED FOR MAXIMUM RECALL
         """
         if mode == "sparse":
-            # Precision-first: Avoid duplicates
+            # Precision-first: Avoid duplicates BUT still detect everyone
             results = self.detector.model.predict(
                 source=frame,
-                conf=0.25,      # Higher confidence
-                iou=0.45,       # Aggressive NMS
+                conf=0.01,      # LOWERED from 0.02 - catch more people
+                iou=0.40,       # RELAXED from 0.45 - less aggressive NMS
                 classes=[0],
-                max_det=500,
-                imgsz=1280,
+                max_det=2000,   # INCREASED from 1500
+                imgsz=1920,     # HIGH RES
                 half=True,
                 device=self.detector.device,
                 verbose=False
             )
         elif mode == "dense":
-            # Recall-first: Catch everyone
+            # Recall-first: Catch EVERYONE - NO FALSE NEGATIVES
             results = self.detector.model.predict(
                 source=frame,
-                conf=0.01,      # Very low confidence
-                iou=0.25,       # Relaxed NMS
+                conf=0.005,     # ULTRA LOW - from 0.01 to catch all people
+                iou=0.20,       # VERY RELAXED - from 0.25 to preserve overlapping detections
                 classes=[0],
-                max_det=2000,
-                imgsz=1920,
+                max_det=3000,   # INCREASED from 2000 for very dense crowds
+                imgsz=1920,     # KEEP HIGH RES
                 half=True,
                 device=self.detector.device,
                 verbose=False
             )
         else:  # medium
-            # Balanced
+            # Balanced - favor recall over precision
             results = self.detector.model.predict(
                 source=frame,
-                conf=0.15,
-                iou=0.35,
+                conf=0.01,      # LOWERED from 0.15
+                iou=0.30,       # RELAXED from 0.35
                 classes=[0],
-                max_det=1000,
-                imgsz=1600,
+                max_det=2000,   # INCREASED from 1000
+                imgsz=1920,     # INCREASED from 1600
                 half=True,
                 device=self.detector.device,
                 verbose=False
@@ -236,16 +232,10 @@ class RobustDetectionPipeline:
         if not detections:
             return []
         
-        validated = []
-        threshold = self.heatmap_config[f'{mode}_threshold']
-        
-        for det in detections:
-            heat_value = self.heatmap.get_heat_at_bbox(det['bbox'])
-            confidence = det['confidence']
-            
-            # Accept if either high confidence OR in hot zone
-            if confidence > 0.5 or heat_value > threshold:
-                validated.append(det)
+        # DISABLED: Heatmap validation completely removed
+        # Trust YOLO - it's trained on millions of crowd images
+        # NO confidence filtering here - let temporal validator handle it
+        validated = detections  # Pass all detections through
         
         return validated
     

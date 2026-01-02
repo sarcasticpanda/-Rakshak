@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Setup - जनRakshak</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0d1011 0%, #1a1e1f 100%);
+            color: #e6ecec;
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #00ffcc, #00ccff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .subtitle {
+            color: #888;
+            margin-bottom: 40px;
+        }
+        .section {
+            background: rgba(31, 37, 38, 0.85);
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 1px solid #2a3132;
+        }
+        .section h2 {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: #00ffcc;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        .status.success {
+            background: rgba(51, 204, 136, 0.2);
+            border: 1px solid #33cc88;
+            color: #33cc88;
+        }
+        .status.error {
+            background: rgba(255, 51, 51, 0.2);
+            border: 1px solid #ff3333;
+            color: #ff3333;
+        }
+        .status.pending {
+            background: rgba(255, 170, 0, 0.2);
+            border: 1px solid #ffaa00;
+            color: #ffaa00;
+        }
+        button {
+            background: linear-gradient(135deg, #00b386, #008866);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background: linear-gradient(135deg, #00cc99, #009977);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 179, 134, 0.3);
+        }
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .camera-list {
+            margin-top: 20px;
+        }
+        .camera-item {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .camera-info {
+            flex: 1;
+        }
+        .camera-info h3 {
+            font-size: 1.1rem;
+            margin-bottom: 5px;
+        }
+        .camera-info p {
+            color: #888;
+            font-size: 0.9rem;
+        }
+        .badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        .badge.running {
+            background: rgba(51, 204, 136, 0.3);
+            color: #33cc88;
+        }
+        .badge.stopped {
+            background: rgba(255, 51, 51, 0.3);
+            color: #ff3333;
+        }
+        .badge.error {
+            background: rgba(255, 170, 0, 0.3);
+            color: #ffaa00;
+        }
+        code {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            color: #00ffcc;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .action-card {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #2a3132;
+        }
+        .action-card h3 {
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+            color: #00ccff;
+        }
+        .action-card p {
+            color: #888;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Quick Setup - जनRakshak</h1>
+        <p class="subtitle">Automated backend connection and camera setup</p>
+
+        <!-- Backend Status -->
+        <div class="section">
+            <h2>📡 Backend Connection</h2>
+            <div id="backendStatus" class="status pending">
+                ⏳ Checking backend connection...
+            </div>
+            <button id="checkBackendBtn" onclick="checkBackend()">🔄 Check Backend</button>
+            <button onclick="window.open('http://localhost:8000/docs', '_blank')">📚 API Docs</button>
+        </div>
+
+        <!-- Camera Setup -->
+        <div class="section">
+            <h2>📹 Camera Setup</h2>
+            <div id="cameraStatus" class="status pending">
+                ⏳ Waiting for backend connection...
+            </div>
+            
+            <div class="grid">
+                <div class="action-card">
+                    <h3>Quick Add All Test Cameras</h3>
+                    <p>Automatically register all 3 test videos from check_vids folder</p>
+                    <button id="addAllBtn" onclick="addAllTestCameras()" disabled>
+                        ➕ Add All Test Cameras
+                    </button>
+                </div>
+                
+                <div class="action-card">
+                    <h3>Refresh Camera List</h3>
+                    <p>Reload cameras from backend to see current status</p>
+                    <button onclick="loadCameras()">🔁 Refresh Cameras</button>
+                </div>
+            </div>
+
+            <div id="cameraList" class="camera-list"></div>
+        </div>
+
+        <!-- Actions -->
+        <div class="section">
+            <h2>🎯 Next Steps</h2>
+            <div class="grid">
+                <div class="action-card">
+                    <h3>View Live Feeds</h3>
+                    <p>Open main dashboard to see processed video streams</p>
+                    <button onclick="window.location.href='index.html'">
+                        🎥 Open Dashboard
+                    </button>
+                </div>
+                
+                <div class="action-card">
+                    <h3>Test Simple Page</h3>
+                    <p>Basic test page to verify backend connection</p>
+                    <button onclick="window.location.href='simple-test.html'">
+                        🧪 Open Test Page
+                    </button>
+                </div>
+                
+                <div class="action-card">
+                    <h3>Camera Feeds Test</h3>
+                    <p>View video streams without full dashboard</p>
+                    <button onclick="window.location.href='camera-feeds-test.html'">
+                        📺 View Streams
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let backendConnected = false;
+
+        // Auto-check backend on load
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 Quick Setup initialized');
+            checkBackend();
+        });
+
+        async function checkBackend() {
+            console.log('📡 Checking backend at:', API_BASE);
+            const statusDiv = document.getElementById('backendStatus');
+            const addAllBtn = document.getElementById('addAllBtn');
+            
+            statusDiv.className = 'status pending';
+            statusDiv.textContent = '⏳ Connecting to backend...';
+
+            try {
+                const response = await fetch(`${API_BASE}/health`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('✅ Backend response:', data);
+
+                statusDiv.className = 'status success';
+                statusDiv.innerHTML = `✅ Backend connected successfully!<br><small>Status: ${data.status || 'running'}</small>`;
+                
+                backendConnected = true;
+                addAllBtn.disabled = false;
+
+                // Auto-load cameras
+                await loadCameras();
+
+            } catch (error) {
+                console.error('❌ Backend connection failed:', error);
+                statusDiv.className = 'status error';
+                statusDiv.innerHTML = `❌ Backend connection failed!<br><small>Make sure the server is running: <code>python main.py</code></small>`;
+                backendConnected = false;
+                addAllBtn.disabled = true;
+            }
+        }
+
+        async function loadCameras() {
+            if (!backendConnected) {
+                console.log('⚠️ Backend not connected, skipping camera load');
+                return;
+            }
+
+            console.log('🔄 Loading cameras...');
+            const statusDiv = document.getElementById('cameraStatus');
+            const listDiv = document.getElementById('cameraList');
+
+            try {
+                const response = await fetch(`${API_BASE}/cameras`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const cameras = await response.json();
+                console.log('📹 Cameras loaded:', cameras);
+
+                if (cameras.length === 0) {
+                    statusDiv.className = 'status pending';
+                    statusDiv.textContent = '⚠️ No cameras registered yet. Click "Add All Test Cameras" to get started.';
+                    listDiv.innerHTML = '<p style="color: #888; text-align: center; padding: 20px;">No cameras found</p>';
+                } else {
+                    statusDiv.className = 'status success';
+                    statusDiv.textContent = `✅ Found ${cameras.length} camera(s) - All systems operational`;
+
+                    listDiv.innerHTML = cameras.map(cam => {
+                        const metric = cam.latest_metrics || {};
+                        const statusClass = cam.status === 'running' ? 'running' : 
+                                          cam.status === 'error' ? 'error' : 'stopped';
+                        
+                        return `
+                            <div class="camera-item">
+                                <div class="camera-info">
+                                    <h3>${cam.name} <code>${cam.camera_id}</code></h3>
+                                    <p>📍 ${cam.location || 'Unknown location'}</p>
+                                    <p>👥 ${metric.people_count || 0} people • 
+                                       ⚠️ Risk: ${((metric.risk_level || 0) * 100).toFixed(0)}%</p>
+                                </div>
+                                <span class="badge ${statusClass}">${cam.status || 'stopped'}</span>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            } catch (error) {
+                console.error('❌ Failed to load cameras:', error);
+                statusDiv.className = 'status error';
+                statusDiv.textContent = '❌ Failed to load cameras';
+            }
+        }
+
+        async function addAllTestCameras() {
+            console.log('➕ Adding all test cameras...');
+            const btn = document.getElementById('addAllBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Adding cameras...';
+
+            const testCameras = [
+                {
+                    camera_id: 'cam_stampede',
+                    name: 'Stampede Test',
+                    source: '../check_vids/stampede.mp4',
+                    location: 'Test Location 1',
+                    context: 'general'
+                },
+                {
+                    camera_id: 'cam_test2',
+                    name: 'Sparse Test',
+                    source: '../check_vids/test2.mp4',
+                    location: 'Test Location 2',
+                    context: 'general'
+                },
+                {
+                    camera_id: 'cam_test3',
+                    name: 'Medium Test',
+                    source: '../check_vids/test3.mp4',
+                    location: 'Test Location 3',
+                    context: 'general'
+                }
+            ];
+
+            let successCount = 0;
+            let errorCount = 0;
+
+            for (const camera of testCameras) {
+                try {
+                    console.log(`Adding camera: ${camera.name}...`);
+                    const response = await fetch(`${API_BASE}/cameras`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(camera)
+                    });
+
+                    if (response.ok) {
+                        console.log(`✅ Added: ${camera.name}`);
+                        successCount++;
+                    } else if (response.status === 409) {
+                        console.log(`⚠️ Already exists: ${camera.name}`);
+                        successCount++; // Count as success since camera exists
+                    } else {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                } catch (error) {
+                    console.error(`❌ Failed to add ${camera.name}:`, error);
+                    errorCount++;
+                }
+            }
+
+            btn.textContent = `✅ Added ${successCount} camera(s)`;
+            setTimeout(() => {
+                btn.textContent = '➕ Add All Test Cameras';
+                btn.disabled = false;
+            }, 2000);
+
+            // Reload camera list
+            await loadCameras();
+
+            if (successCount > 0) {
+                alert(`✅ Successfully added/verified ${successCount} cameras!\n\nYou can now view them in the dashboard.`);
+            }
+        }
+    </script>
+</body>
+</html>

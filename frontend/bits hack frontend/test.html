@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Backend Test - जनRakshak</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #0d1011;
+            color: #00ffcc;
+            padding: 20px;
+        }
+        .section {
+            background: #1f2526;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid #2a3132;
+        }
+        pre {
+            background: #0d1011;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .status { color: #33cc88; }
+        .error { color: #ff3333; }
+        .warning { color: #ffaa00; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Backend Integration Test</h1>
+    
+    <div class="section">
+        <h2>1. Backend Health</h2>
+        <div id="health">Checking...</div>
+    </div>
+    
+    <div class="section">
+        <h2>2. Cameras</h2>
+        <div id="cameras">Loading...</div>
+    </div>
+    
+    <div class="section">
+        <h2>3. WebSocket Connection</h2>
+        <div id="websocket">Connecting...</div>
+    </div>
+    
+    <div class="section">
+        <h2>4. Latest Metrics</h2>
+        <div id="metrics">Waiting for data...</div>
+    </div>
+    
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        const WS_URL = 'ws://localhost:8000/ws/metrics';
+        let ws;
+        let metricsCount = 0;
+        
+        // Test health endpoint
+        fetch(`${API_BASE}/health`)
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('health').innerHTML = `
+                    <div class="status">✅ Backend is healthy</div>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            })
+            .catch(err => {
+                document.getElementById('health').innerHTML = `
+                    <div class="error">❌ Error: ${err.message}</div>
+                `;
+            });
+        
+        // Test cameras endpoint
+        fetch(`${API_BASE}/cameras`)
+            .then(r => r.json())
+            .then(data => {
+                const cameraList = data.cameras.map(cam => `
+                    <li>
+                        <strong>${cam.name}</strong> (${cam.camera_id})<br>
+                        Status: ${cam.status}<br>
+                        People: ${cam.latest_metrics?.people_count || 0}<br>
+                        Risk: ${((cam.latest_metrics?.risk_level || 0) * 100).toFixed(0)}%
+                    </li>
+                `).join('');
+                
+                document.getElementById('cameras').innerHTML = `
+                    <div class="status">✅ Found ${data.cameras.length} cameras</div>
+                    <ul>${cameraList}</ul>
+                `;
+            })
+            .catch(err => {
+                document.getElementById('cameras').innerHTML = `
+                    <div class="error">❌ Error: ${err.message}</div>
+                `;
+            });
+        
+        // Test WebSocket
+        ws = new WebSocket(WS_URL);
+        
+        ws.onopen = () => {
+            document.getElementById('websocket').innerHTML = `
+                <div class="status">✅ WebSocket connected</div>
+            `;
+        };
+        
+        ws.onmessage = (event) => {
+            metricsCount++;
+            const data = JSON.parse(event.data);
+            
+            const cameraMetrics = data.camera_metrics?.map(m => `
+                <strong>${m.camera_id}</strong>: ${m.people_count} people, Risk: ${(m.risk_level * 100).toFixed(0)}%
+            `).join('<br>') || 'No camera metrics';
+            
+            document.getElementById('metrics').innerHTML = `
+                <div class="status">✅ Received ${metricsCount} updates</div>
+                <div class="warning">Last update: ${new Date().toLocaleTimeString()}</div>
+                <pre>${cameraMetrics}</pre>
+            `;
+        };
+        
+        ws.onerror = (error) => {
+            document.getElementById('websocket').innerHTML = `
+                <div class="error">❌ WebSocket error: ${error.message}</div>
+            `;
+        };
+        
+        ws.onclose = () => {
+            document.getElementById('websocket').innerHTML += `
+                <div class="warning">⚠️ WebSocket disconnected</div>
+            `;
+        };
+    </script>
+</body>
+</html>

@@ -28,7 +28,7 @@
                 <div class="dashboard">
                     <div class="dashboard-header">
                         <h2>Real-Time Stampede Detection</h2>
-                        <p class="subtitle">AI-powered analytics • Last updated: <span id="lastUpdate">11:36:18 AM</span></p>
+                        <p class="subtitle">AI-powered analytics • Last updated: <span id="lastUpdate">--:--:--</span> • <span class="connection-status disconnected">● Disconnected</span></p>
                         <!-- Replaced input with a link to the API upload page -->
                         <a href="http://127.0.0.1:8000/upload" class="upload-btn" style="text-decoration: none;">📤 Upload Video </a>
                     </div>
@@ -36,19 +36,23 @@
                     <div class="stats-grid">
                         <div class="stat-card">
                             <h3>SELECTED CAMERA VISITORS</h3>
-                            <div class="stat-value">2,810</div>
-                            <p>Live count for selected camera</p>
+                            <select id="cameraSelector" style="width: 100%; padding: 8px; margin: 10px 0; background: rgba(0,0,0,0.3); color: #00ffcc; border: 1px solid #00ffcc; border-radius: 6px; font-size: 14px;">
+                                <option value="all">All Cameras (Combined)</option>
+                                <!-- Camera options will be dynamically loaded -->
+                            </select>
+                            <div class="stat-value" id="selectedCameraCount">0</div>
+                            <p id="selectedCameraLabel">Select a camera above</p>
                         </div>
                         <div class="stat-card">
                             <h3>CURRENT DENSITY</h3>
-                            <div class="stat-value">66%</div>
-                            <div class="density-tag">Moderate</div>
+                            <div class="stat-value" id="selectedCameraDensity">0%</div>
+                            <div class="density-tag" id="densityTagLabel">N/A</div>
                             <p>Occupancy level monitored by AI</p>
                         </div>
                         <div class="stat-card">
                             <h3>ACTIVE ALERTS</h3>
-                            <div class="stat-value alert">2</div>
-                            <p>Monitoring for anomalies</p>
+                            <div class="stat-value alert" id="activeAlertsCount">0</div>
+                            <p>Cameras with Risk > 90%</p>
                         </div>
                         <div class="stat-card">
                             <h3>ACTIVE CAMERAS</h3>
@@ -140,77 +144,40 @@
             <div id="live-feeds" class="page">
                 <h1>Live Camera Feeds</h1>
                 <div class="camera-grid">
-                    <div class="camera-feed" data-camera-id="1" data-camera-name="Main Entrance">
-                        <h3>Main Entrance</h3>
-                        <video class="feed-video" controls>
-                            <source src="path/to/main_entrance.mp4" type="video/mp4">
-                            Your browser does not support the video tag.
-                        </video>
-                    </div>
-                    <div class="camera-feed" data-camera-id="2" data-camera-name="Food Court">
-                        <h3>Food Court</h3>
-                        <video class="feed-video" controls>
-                            <source src="path/to/food_court.mp4" type="video/mp4">
-                            Your browser does not support the video tag.
-                        </video>
-                    </div>
-                    <div class="camera-feed" data-camera-id="3" data-camera-name="Parking Lot">
-                        <h3>Parking Lot</h3>
-                        <video class="feed-video" controls>
-                            <source src="path/to/parking_lot.mp4" type="video/mp4">
-                            Your browser does not support the video tag.
-                        </video>
-                    </div>
-                    <div class="camera-feed" data-camera-id="4" data-camera-name="Lobby">
-                        <h3>Lobby</h3>
-                        <video class="feed-video" controls>
-                            <source src="path/to/lobby.mp4" type="video/mp4">
-                            Your browser does not support the video tag.
-                        </video>
-                    </div>
-                    <div class="camera-feed" data-camera-id="5" data-camera-name="Conference Room">
-                        <h3>Conference Room</h3>
-                        <video class="feed-video" controls>
-                            <source src="path/to/conference_room.mp4" type="video/mp4">
-                            Your browser does not support the video tag.
-                        </video>
-                    </div>
-                    <div class="camera-feed" data-camera-id="6" data-camera-name="Back Exit">
-                        <h3>Back Exit</h3>
-                        <video class="feed-video" controls>
-                            <source src="path/to/back_exit.mp4" type="video/mp4">
-                            Your browser does not support the video tag.
-                        </video>
+                    <!-- Cameras will be dynamically loaded from backend -->
+                    <div style="text-align: center; padding: 50px; color: #888;">
+                        <p>Loading cameras...</p>
                     </div>
                 </div>
             </div>
 
             <div id="camera-management" class="page">
                 <h1>Camera Management</h1>
-                <div class="camera-list">
-                    <div class="camera-item" data-page="live-feeds">
-                        <h3>Camera 1 - Main Entrance</h3>
-                        <p>Status: Online</p>
+                <div class="camera-management-grid">
+                    <div class="camera-add">
+                        <h3>Add Camera</h3>
+                        <form id="addCameraForm">
+                            <label>Camera ID</label>
+                            <input type="text" id="new_camera_id" placeholder="cam_new" required />
+                            <label>Name</label>
+                            <input type="text" id="new_camera_name" placeholder="Main Entrance" required />
+                            <label>Source (relative path or URL)</label>
+                            <input type="text" id="new_camera_source" placeholder="../check_vids/new.mp4 or rtsp://..." required />
+                            <label>Location</label>
+                            <input type="text" id="new_camera_location" placeholder="Test Location" />
+                            <div style="margin-top:10px;">
+                                <button type="button" id="addCameraBtn">➕ Add Camera</button>
+                                <button type="button" id="refreshCamerasBtn">🔁 Refresh</button>
+                            </div>
+                        </form>
                     </div>
-                    <div class="camera-item" data-page="live-feeds">
-                        <h3>Camera 2 - Food Court</h3>
-                        <p>Status: Online</p>
-                    </div>
-                    <div class="camera-item" data-page="live-feeds">
-                        <h3>Camera 3 - Parking Lot</h3>
-                        <p>Status: Online</p>
-                    </div>
-                    <div class="camera-item" data-page="live-feeds">
-                        <h3>Camera 4 - Lobby</h3>
-                        <p>Status: Online</p>
-                    </div>
-                    <div class="camera-item" data-page="live-feeds">
-                        <h3>Camera 5 - Conference Room</h3>
-                        <p>Status: Online</p>
-                    </div>
-                    <div class="camera-item" data-page="live-feeds">
-                        <h3>Camera 6 - Back Exit</h3>
-                        <p>Status: Online</p>
+
+                    <div class="camera-list-container">
+                        <h3>Registered Cameras</h3>
+                        <div id="camera-list" class="camera-list">
+                            <!-- Managed cameras will be injected here -->
+                            <div style="text-align: center; padding: 30px; color: #888;">Loading cameras...</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -267,6 +234,7 @@
         </main>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="app.js"></script>
     <script src="main.js"></script>
 </body>
 </html>

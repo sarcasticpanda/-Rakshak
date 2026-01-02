@@ -53,6 +53,7 @@ function updateTime() {
     document.getElementById('lastUpdate').textContent = now.toLocaleTimeString();
 }
 setInterval(updateTime, 1000);
+updateTime(); // Initialize immediately
 
 // Density Chart
 const ctx = document.getElementById('densityChart').getContext('2d');
@@ -134,40 +135,19 @@ const densityChart = new Chart(ctx, {
     }
 });
 
-function updateChart() {
-    try {
-        const now = new Date();
-        const timeLabel = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+// Chart updates are now handled by app.js updateLiveStats() using real WebSocket data
+// No need for simulated data anymore - real metrics come from backend
 
-        let newCount = countData.length > 0 ? countData[countData.length - 1] + (Math.random() * 50 - 25) : 200;
-        newCount = Math.max(50, newCount);
+// Export chart globally for app.js to access
+window.densityChart = densityChart;
 
-        lastDensity += (Math.random() * 0.02 - 0.01);
-        lastDensity = Math.max(0.1, Math.min(1, lastDensity));
-
-        labels.push(timeLabel);
-        countData.push(newCount);
-        densityData.push(lastDensity * newCount);
-
-        if (labels.length > maxPoints) {
-            labels.shift();
-            countData.shift();
-            densityData.shift();
-        }
-
-        densityChart.data.labels = labels;
-        densityChart.data.datasets[0].data = countData;
-        densityChart.data.datasets[1].data = densityData;
-        densityChart.update();
-    } catch (error) {
-        console.error("Error updating chart:", error);
-    }
-}
-setInterval(updateChart, 1000);
+console.log('✅ Chart initialized and exported to window.densityChart');
 
 // Initialize analytics chart with Django API fetch
 const analyticsCtx = document.getElementById('analyticsChart');
 if (analyticsCtx) {
+    // Removed old Django API call - will integrate with new backend analytics
+    /*
     fetch('http://127.0.0.1:8000/base/getinfo')
         .then(response => response.json())
         .then(data => {
@@ -197,27 +177,72 @@ if (analyticsCtx) {
                 }
             });
         })
-        .catch(error => console.error('Error fetching data:', error));
+        .catch(error => console.log('Analytics chart will be populated with real data'));
+    */
+    // Placeholder chart until analytics integration
+    const analyticsChart = new Chart(analyticsCtx, {
+        type: 'line',
+        data: {
+            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+            datasets: [{
+                label: 'Weekly Visitors',
+                data: [1200, 1900, 1500, 2100, 1800, 2400, 2000],
+                borderColor: '#00ffcc',
+                backgroundColor: 'rgba(0, 255, 204, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { color: 'rgba(255, 255, 255, 0.7)' }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                    ticks: { color: 'rgba(255, 255, 255, 0.7)' }
+                },
+                x: {
+                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                    ticks: { color: 'rgba(255, 255, 255, 0.7)' }
+                }
+            }
+        }
+    });
 }
 
-// Simulate real-time updates
+// Simulate real-time updates (disabled when using real backend)
 function updateRandomData() {
+    // Skip if real backend is connected
+    if (window.rakshakApp && window.rakshakApp.state.ws && window.rakshakApp.state.ws.readyState === WebSocket.OPEN) {
+        return;
+    }
+    
     const newCount = Math.floor(Math.random() * 1000) + 2000;
-    document.querySelector('.stat-value').textContent = newCount.toLocaleString();
+    const element = document.querySelector('.stat-value');
+    if (element) element.textContent = newCount.toLocaleString();
 
     const newDensity = Math.floor(Math.random() * 30) + 50;
     const densityElements = document.querySelectorAll('.stat-value');
-    densityElements[1].textContent = newDensity + '%';
+    if (densityElements[1]) densityElements[1].textContent = newDensity + '%';
 
-    const newData = densityChart.data.datasets[0].data.slice(1);
-    newData.push(Math.floor(Math.random() * 400) + 200);
-    densityChart.data.datasets[0].data = newData;
+    if (densityChart && densityChart.data.datasets[0]) {
+        const newData = densityChart.data.datasets[0].data.slice(1);
+        newData.push(Math.floor(Math.random() * 400) + 200);
+        densityChart.data.datasets[0].data = newData;
 
-    const newDensityData = densityChart.data.datasets[1].data.slice(1);
-    newDensityData.push(Math.random() * 0.6 + 0.2);
-    densityChart.data.datasets[1].data = newDensityData;
+        const newDensityData = densityChart.data.datasets[1].data.slice(1);
+        newDensityData.push(Math.random() * 0.6 + 0.2);
+        densityChart.data.datasets[1].data = newDensityData;
 
-    densityChart.update();
+        densityChart.update();
+    }
 }
 setInterval(updateRandomData, 5000);
 

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Backend Test</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #00ff88;
+            padding: 30px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #00ffcc;
+            border-bottom: 2px solid #00ff88;
+            padding-bottom: 10px;
+        }
+        .test-section {
+            background: #1a1a1a;
+            border: 2px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .test-section h2 {
+            color: #ffaa00;
+            margin-top: 0;
+        }
+        .status {
+            padding: 5px 10px;
+            border-radius: 4px;
+            display: inline-block;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .success { background: #00ff88; color: #000; }
+        .error { background: #ff3333; color: #fff; }
+        .pending { background: #ffaa00; color: #000; }
+        pre {
+            background: #0a0a0a;
+            border: 1px solid #333;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            color: #00ffcc;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        button {
+            background: #00ff88;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px 10px 0;
+        }
+        button:hover {
+            background: #00ffcc;
+        }
+        .data-row {
+            padding: 8px;
+            margin: 5px 0;
+            background: #0a0a0a;
+            border-left: 3px solid #00ff88;
+            border-radius: 3px;
+        }
+        .label {
+            color: #ffaa00;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Simple Backend Connection Test</h1>
+    <p style="color: #888;">Testing connection to: <strong style="color: #00ffcc;">http://localhost:8000</strong></p>
+
+    <button onclick="runAllTests()">🔄 Run All Tests</button>
+    <button onclick="location.reload()">🔃 Refresh Page</button>
+
+    <!-- Test 1: Backend Health -->
+    <div class="test-section">
+        <h2>📡 Test 1: Backend Health Check</h2>
+        <div class="status pending" id="health-status">PENDING</div>
+        <div class="data-row">
+            <span class="label">Endpoint:</span> GET /health
+        </div>
+        <pre id="health-data">Not tested yet</pre>
+    </div>
+
+    <!-- Test 2: Cameras List -->
+    <div class="test-section">
+        <h2>📹 Test 2: Get Cameras</h2>
+        <div class="status pending" id="cameras-status">PENDING</div>
+        <div class="data-row">
+            <span class="label">Endpoint:</span> GET /cameras
+        </div>
+        <div class="data-row">
+            <span class="label">Expected:</span> Array of camera objects
+        </div>
+        <pre id="cameras-data">Not tested yet</pre>
+    </div>
+
+    <!-- Test 3: WebSocket Connection -->
+    <div class="test-section">
+        <h2>🔌 Test 3: WebSocket Real-time Metrics</h2>
+        <div class="status pending" id="ws-status">PENDING</div>
+        <div class="data-row">
+            <span class="label">Endpoint:</span> ws://localhost:8000/ws/metrics
+        </div>
+        <div class="data-row">
+            <span class="label">Messages Received:</span> <span id="ws-count">0</span>
+        </div>
+        <button onclick="connectWebSocket()">Connect WebSocket</button>
+        <button onclick="disconnectWebSocket()">Disconnect</button>
+        <pre id="ws-data">Not connected</pre>
+    </div>
+
+    <!-- Summary -->
+    <div class="test-section" style="border-color: #00ffcc;">
+        <h2>📊 Summary</h2>
+        <div id="summary">
+            <p>Click "Run All Tests" to start testing the backend connection.</p>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        const WS_URL = 'ws://localhost:8000/ws/metrics';
+        let ws = null;
+        let wsMessageCount = 0;
+
+        // Run all tests
+        async function runAllTests() {
+            console.log('🚀 Starting all tests...');
+            await testHealth();
+            await testCameras();
+            connectWebSocket();
+            updateSummary();
+        }
+
+        // Test 1: Health Check
+        async function testHealth() {
+            const statusEl = document.getElementById('health-status');
+            const dataEl = document.getElementById('health-data');
+            
+            try {
+                statusEl.textContent = 'TESTING...';
+                statusEl.className = 'status pending';
+                
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    statusEl.textContent = '✅ SUCCESS';
+                    statusEl.className = 'status success';
+                    dataEl.textContent = JSON.stringify(data, null, 2);
+                    console.log('✅ Health check passed:', data);
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (error) {
+                statusEl.textContent = '❌ FAILED';
+                statusEl.className = 'status error';
+                dataEl.textContent = `Error: ${error.message}`;
+                console.error('❌ Health check failed:', error);
+            }
+        }
+
+        // Test 2: Get Cameras
+        async function testCameras() {
+            const statusEl = document.getElementById('cameras-status');
+            const dataEl = document.getElementById('cameras-data');
+            
+            try {
+                statusEl.textContent = 'TESTING...';
+                statusEl.className = 'status pending';
+                
+                const response = await fetch(`${API_BASE}/cameras`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    statusEl.textContent = '✅ SUCCESS';
+                    statusEl.className = 'status success';
+                    
+                    // Check if it's an array
+                    if (Array.isArray(data)) {
+                        dataEl.textContent = `✅ Received ARRAY with ${data.length} cameras:\n\n` + JSON.stringify(data, null, 2);
+                        console.log('✅ Cameras received (ARRAY format):', data);
+                    } else if (data.cameras && Array.isArray(data.cameras)) {
+                        dataEl.textContent = `⚠️ Received OBJECT with cameras property:\n\n` + JSON.stringify(data, null, 2);
+                        console.log('⚠️ Cameras received (OBJECT format):', data);
+                    } else {
+                        dataEl.textContent = `⚠️ Unexpected format:\n\n` + JSON.stringify(data, null, 2);
+                        console.log('⚠️ Cameras unexpected format:', data);
+                    }
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (error) {
+                statusEl.textContent = '❌ FAILED';
+                statusEl.className = 'status error';
+                dataEl.textContent = `Error: ${error.message}`;
+                console.error('❌ Cameras test failed:', error);
+            }
+        }
+
+        // Test 3: WebSocket Connection
+        function connectWebSocket() {
+            const statusEl = document.getElementById('ws-status');
+            const dataEl = document.getElementById('ws-data');
+            const countEl = document.getElementById('ws-count');
+            
+            if (ws) {
+                console.log('⚠️ WebSocket already connected');
+                return;
+            }
+            
+            try {
+                statusEl.textContent = 'CONNECTING...';
+                statusEl.className = 'status pending';
+                dataEl.textContent = 'Connecting to WebSocket...';
+                
+                ws = new WebSocket(WS_URL);
+                
+                ws.onopen = () => {
+                    statusEl.textContent = '✅ CONNECTED';
+                    statusEl.className = 'status success';
+                    dataEl.textContent = 'Connected! Waiting for messages...\n\n';
+                    console.log('✅ WebSocket connected');
+                };
+                
+                ws.onmessage = (event) => {
+                    wsMessageCount++;
+                    countEl.textContent = wsMessageCount;
+                    
+                    try {
+                        const data = JSON.parse(event.data);
+                        const timestamp = new Date().toLocaleTimeString();
+                        dataEl.textContent = `[${timestamp}] Message #${wsMessageCount}:\n\n` + JSON.stringify(data, null, 2);
+                        console.log(`📨 WebSocket message #${wsMessageCount}:`, data);
+                    } catch (error) {
+                        dataEl.textContent = `[Error parsing message]: ${event.data}`;
+                    }
+                };
+                
+                ws.onerror = (error) => {
+                    statusEl.textContent = '❌ ERROR';
+                    statusEl.className = 'status error';
+                    dataEl.textContent = 'WebSocket error occurred';
+                    console.error('❌ WebSocket error:', error);
+                };
+                
+                ws.onclose = () => {
+                    statusEl.textContent = '⚠️ DISCONNECTED';
+                    statusEl.className = 'status pending';
+                    dataEl.textContent += '\n\nWebSocket disconnected';
+                    console.log('⚠️ WebSocket disconnected');
+                    ws = null;
+                };
+                
+            } catch (error) {
+                statusEl.textContent = '❌ FAILED';
+                statusEl.className = 'status error';
+                dataEl.textContent = `Error: ${error.message}`;
+                console.error('❌ WebSocket connection failed:', error);
+            }
+        }
+
+        function disconnectWebSocket() {
+            if (ws) {
+                ws.close();
+                ws = null;
+                console.log('🔌 WebSocket manually disconnected');
+            }
+        }
+
+        function updateSummary() {
+            const summaryEl = document.getElementById('summary');
+            const healthStatus = document.getElementById('health-status').textContent;
+            const camerasStatus = document.getElementById('cameras-status').textContent;
+            const wsStatus = document.getElementById('ws-status').textContent;
+            
+            let html = '<div class="data-row">';
+            html += `<span class="label">Health Check:</span> ${healthStatus}<br>`;
+            html += `<span class="label">Cameras API:</span> ${camerasStatus}<br>`;
+            html += `<span class="label">WebSocket:</span> ${wsStatus}<br>`;
+            html += '</div>';
+            
+            const allSuccess = healthStatus.includes('SUCCESS') && camerasStatus.includes('SUCCESS');
+            
+            if (allSuccess) {
+                html += '<p style="color: #00ff88; font-weight: bold; margin-top: 20px;">✅ All REST API tests passed! Backend is working correctly.</p>';
+            }
+            
+            summaryEl.innerHTML = html;
+        }
+
+        // Auto-run tests on page load
+        window.addEventListener('load', () => {
+            console.log('🌐 Page loaded, running tests in 1 second...');
+            setTimeout(runAllTests, 1000);
+        });
+    </script>
+</body>
+</html>

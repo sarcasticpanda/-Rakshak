@@ -55,6 +55,10 @@ class EnhancedCrowdHeatmap:
         self.update_count = 0
         self.max_heat = 0.0
         
+        # Adaptive normalization (per-camera)
+        self.running_max = 0.1  # Start low, will adapt
+        self.max_decay = 0.999  # Slowly decay max to adapt to scene changes
+        
         # Visualization cache for performance
         self._vis_cache = None
         self._vis_frame_count = 0
@@ -109,16 +113,21 @@ class EnhancedCrowdHeatmap:
                 self.gaussian_sigma
             )
         
-        # Step 4: Normalize to [0, 1]
-        max_temporal = np.max(self.temporal_heatmap)
-        max_confidence = np.max(self.confidence_heatmap)
+        # Step 4: Adaptive normalization (per-camera, not global)
+        # Track max heat seen and normalize relative to that
+        current_max = np.max(self.temporal_heatmap)
         
-        if max_temporal > 0:
-            self.temporal_heatmap /= max_temporal
-        if max_confidence > 0:
-            self.confidence_heatmap /= max_confidence
+        # Update running max with decay (adapts to scene changes)
+        self.running_max = max(current_max, self.running_max * self.max_decay)
         
-        self.max_heat = max_temporal
+        # Prevent division by zero, ensure minimum scale
+        normalize_by = max(self.running_max, 0.5)
+        
+        # Normalize to [0, 1] based on this camera's history
+        self.temporal_heatmap = np.clip(self.temporal_heatmap / normalize_by, 0, 1)
+        self.confidence_heatmap = np.clip(self.confidence_heatmap / normalize_by, 0, 1)
+        
+        self.max_heat = current_max
         self.update_count += 1
     
     def get_heat_at_bbox(self, bbox: List[float], use_confidence: bool = False) -> float:

@@ -232,7 +232,7 @@ class CameraPipeline:
             
             # Initialize processing components
             print(f"[CameraPipeline:{self.camera_id}] Loading AI pipeline...")
-            self.detector = RobustDetectionPipeline(enable_heatmap=True)
+            self.detector = RobustDetectionPipeline(enable_heatmap=False)  # Disabled - was dropping 40%+ detections
             self.tracker = ByteTracker()
             self.metrics_calc = CrowdMetrics()
             
@@ -419,16 +419,12 @@ class CameraPipeline:
         annotated = frame.copy()
         h, w = frame.shape[:2]
         
-        # Heatmap overlay with stronger alpha for visibility
-        if self.detector.heatmap and self.detector.heatmap.is_bootstrapped():
-            heat_vis = self.detector.heatmap.get_visualization(frame)
-            if heat_vis is not None:
-                # Blend: 50% frame + 50% heatmap for better visibility
-                annotated = cv2.addWeighted(annotated, 0.5, heat_vis, 0.5, 0)
-                # Debug: Draw heatmap status indicator
-                cv2.circle(annotated, (30, 30), 15, (0, 255, 0), -1)
-                cv2.putText(annotated, "HEAT", (50, 35), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        # Heatmap overlay DISABLED - heatmap feature completely removed
+        # No heatmap visualization to avoid confusion
+        # if self.detector.heatmap and self.detector.heatmap.is_bootstrapped():
+        #     heat_vis = self.detector.heatmap.get_visualization(frame)
+        #     if heat_vis is not None:
+        #         annotated = cv2.addWeighted(annotated, 0.5, heat_vis, 0.5, 0)
         
         # Skip drawing raw detections - tracks already show all people
         # This saves 10-15% rendering time with no accuracy impact

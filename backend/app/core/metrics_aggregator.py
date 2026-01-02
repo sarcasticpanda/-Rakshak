@@ -101,6 +101,7 @@ class MetricsAggregator:
                 
                 metrics_snapshot['cameras'][camera_id] = {
                     'camera_id': camera_id,
+                    'timestamp': time.time(),  # Required for MongoDB TTL index
                     'status': state.status,
                     'people_count': state.metrics.get('people_count', 0),
                     'density': smoothed.get('density', 0.0),
@@ -122,6 +123,7 @@ class MetricsAggregator:
         for area_id, area_data in area_metrics.items():
             metrics_snapshot['areas'][area_id] = {
                 'area_id': area_data.area_id,
+                'timestamp': time.time(),  # Required for MongoDB TTL index
                 'total_people': area_data.total_people,
                 'avg_density': area_data.avg_density,
                 'max_density': area_data.max_density,
