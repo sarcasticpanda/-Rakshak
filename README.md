@@ -182,12 +182,12 @@ Live Metrics (1 Hz)
 
 
 <div align="center">
-   <img src="Screenshot 2026-01-01 170524.png" alt="Dashboard Overview" width="80%"/>
+   <img src="dashboard-overview.png" alt="Dashboard Overview" width="80%"/>
    <br/>
-   <img src="Screenshot 2026-01-03 010647.png" alt="Real-Time Analytics" width="80%"/>
+   <img src="analytics-realtime.png" alt="Real-Time Analytics" width="80%"/>
    <br/>
-   <img src="Screenshot 2026-01-03 115540.png" alt="Peak Hour Analytics" width="49%"/>
-   <img src="Screenshot 2026-01-03 115551.png" alt="Risk Forecast" width="49%"/>
+   <img src="analytics-peak-hour.png" alt="Peak Hour Analytics" width="49%"/>
+   <img src="analytics-risk-forecast.png" alt="Risk Forecast" width="49%"/>
 </div>
 
 ---
