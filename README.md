@@ -1,6 +1,6 @@
 
 <div align="center">
-   <img src="wmremove-transformed (1).jpeg" alt="Project Banner" width="80%"/>
+   <img src="assets/wmremove-transformed (1).jpeg" alt="Project Banner" width="80%"/>
 </div>
 
 # Stampede Rakshak
@@ -182,12 +182,12 @@ Live Metrics (1 Hz)
 
 
 <div align="center">
-   <img src="dashboard-overview.png" alt="Dashboard Overview" width="80%"/>
+   <img src="assets/dashboard-overview.png" alt="Dashboard Overview" width="80%"/>
    <br/>
-   <img src="analytics-realtime.png" alt="Real-Time Analytics" width="80%"/>
+   <img src="assets/analytics-realtime.png" alt="Real-Time Analytics" width="80%"/>
    <br/>
-   <img src="analytics-peak-hour.png" alt="Peak Hour Analytics" width="49%"/>
-   <img src="analytics-risk-forecast.png" alt="Risk Forecast" width="49%"/>
+   <img src="assets/analytics-peak-hour.png" alt="Peak Hour Analytics" width="49%"/>
+   <img src="assets/analytics-risk-forecast.png" alt="Risk Forecast" width="49%"/>
 </div>
 
 ---
