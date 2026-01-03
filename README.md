@@ -1,5 +1,6 @@
+
 <div align="center">
-  <img src="frontend/bits%20hack%20frontend/wmremove-transformed%20(1).jpeg" alt="Project Banner" width="80%"/>
+   <img src="wmremove-transformed (1).jpeg" alt="Project Banner" width="80%"/>
 </div>
 
 # Stampede Rakshak
@@ -179,13 +180,14 @@ Live Metrics (1 Hz)
 
 ## Screenshots
 
+
 <div align="center">
-  <img src="frontend/bits%20hack%20frontend/Screenshot%202026-01-01%20170524.png" alt="Dashboard Overview" width="80%"/>
-  <br/>
-  <img src="frontend/bits%20hack%20frontend/Screenshot%202026-01-03%20010647.png" alt="Real-Time Analytics" width="80%"/>
-  <br/>
-  <img src="frontend/bits%20hack%20frontend/Screenshot%202026-01-03%20115540.png" alt="Peak Hour Analytics" width="49%"/>
-  <img src="frontend/bits%20hack%20frontend/Screenshot%202026-01-03%20115551.png" alt="Risk Forecast" width="49%"/>
+   <img src="Screenshot 2026-01-01 170524.png" alt="Dashboard Overview" width="80%"/>
+   <br/>
+   <img src="Screenshot 2026-01-03 010647.png" alt="Real-Time Analytics" width="80%"/>
+   <br/>
+   <img src="Screenshot 2026-01-03 115540.png" alt="Peak Hour Analytics" width="49%"/>
+   <img src="Screenshot 2026-01-03 115551.png" alt="Risk Forecast" width="49%"/>
 </div>
 
 ---
