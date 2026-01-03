@@ -32,7 +32,8 @@ if errorlevel 1 (
     exit /b 1
 )
 python --version
-echo.cd "C:\Users\Lunar Panda\3-Main\stampede\-Rakshak\frontend\bits hack frontend" ; python -m http.server 5500
+echo.
+
 REM Create venv if it doesn't exist
 if not exist "venv" (
     echo Creating virtual environment...

@@ -161,8 +161,30 @@
                             <input type="text" id="new_camera_id" placeholder="cam_new" required />
                             <label>Name</label>
                             <input type="text" id="new_camera_name" placeholder="Main Entrance" required />
-                            <label>Source (relative path or URL)</label>
-                            <input type="text" id="new_camera_source" placeholder="../check_vids/new.mp4 or rtsp://..." required />
+                            
+                            <label>Source Type</label>
+                            <select id="source_type" style="width:100%;padding:10px;margin-bottom:10px;background:#2a2d3a;color:#fff;border:1px solid #444;border-radius:6px;">
+                                <option value="video">Video File (.mp4)</option>
+                                <option value="ip_webcam">📱 IP Webcam (Phone)</option>
+                                <option value="rtsp">RTSP Stream</option>
+                                <option value="webcam">USB Webcam</option>
+                            </select>
+                            
+                            <div id="ip_webcam_helper" style="display:none;background:#1a1c24;padding:12px;border-radius:6px;margin-bottom:10px;border:1px solid #444;">
+                                <p style="margin:0 0 8px 0;color:#ffaa00;font-size:12px;">📱 <strong>IP Webcam Setup:</strong></p>
+                                <ol style="margin:0;padding-left:20px;font-size:11px;color:#aaa;">
+                                    <li>Install "IP Webcam" app on Android</li>
+                                    <li>Start server in the app</li>
+                                    <li>Note the IP shown (e.g., 192.168.1.100:8080)</li>
+                                    <li>Enter: http://YOUR_IP:8080/video</li>
+                                </ol>
+                                <button type="button" id="useExampleIP" style="margin-top:8px;padding:6px 10px;background:#00aa88;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;">📋 Use Example</button>
+                            </div>
+                            
+                            <label>Source (path or URL)</label>
+                            <input type="text" id="new_camera_source" placeholder="Enter source..." required />
+                            <p id="source_hint" style="font-size:11px;color:#888;margin:5px 0 10px 0;">Example: ../check_vids/video.mp4</p>
+                            
                             <label>Location</label>
                             <input type="text" id="new_camera_location" placeholder="Test Location" />
                             <div style="margin-top:10px;">
@@ -225,16 +247,162 @@
 
             <div id="analytics" class="page">
                 <h1>Analytics Dashboard</h1>
-                <div class="analytics-content">
-                    <div class="chart-container" style="position: relative; height: 400px;">
-                        <canvas id="analyticsChart"></canvas>
+                
+                <!-- Controls -->
+                <div class="analytics-controls">
+                    <select id="analyticsEntityType">
+                        <option value="camera">Camera</option>
+                        <option value="area">Area</option>
+                    </select>
+                    <select id="analyticsEntityId">
+                        <option value="demo">Demo Data</option>
+                    </select>
+                    <select id="analyticsTimeRange">
+                        <option value="1">Last 1 Hour</option>
+                        <option value="6">Last 6 Hours</option>
+                        <option value="24" selected>Last 24 Hours</option>
+                        <option value="168">Last 7 Days</option>
+                    </select>
+                    <button id="analyticsRefresh">🔄 Refresh</button>
+                    <button id="forceInitCharts" style="background:rgba(255,170,0,0.2);border-color:#ffaa00;color:#ffaa00;">⚡ Force Init Charts</button>
+                    <button id="debugAnalytics" style="background:rgba(68,68,255,0.2);border-color:#4444ff;color:#88f;">🔍 Debug</button>
+                </div>
+
+                <!-- Summary Cards -->
+                <div class="analytics-summary">
+                    <div class="summary-card">
+                        <h3>Current Trend</h3>
+                        <div class="trend-indicator" id="trendIndicator">
+                            <span class="trend-icon">→</span>
+                            <span class="trend-text">LOADING</span>
+                        </div>
+                        <p class="trend-detail" id="trendDetail">Initializing...</p>
                     </div>
+
+                    <div class="summary-card">
+                        <h3>30-Min Forecast</h3>
+                        <div class="forecast-value" id="forecastValue">--</div>
+                        <p class="forecast-confidence" id="forecastConfidence">Loading...</p>
+                    </div>
+
+                    <div class="summary-card">
+                        <h3>Peak Hour Today</h3>
+                        <div class="peak-hour" id="peakHour">--:--</div>
+                        <p id="peakHourDetail">Loading...</p>
+                    </div>
+
+                    <div class="summary-card">
+                        <h3>Anomalies Detected</h3>
+                        <div class="anomaly-count" id="anomalyCount">0</div>
+                        <p id="anomalyDetail">Checking...</p>
+                    </div>
+                </div>
+
+                <!-- Main Charts -->
+                <div class="analytics-charts">
+                    <!-- Historical Trend Chart -->
+                    <div class="chart-card">
+                        <h3>📈 Visitor Trend & Risk</h3>
+                        <div style="position:relative;height:350px;width:100%;">
+                            <canvas id="trendChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Peak Hours Heatmap -->
+                    <div class="chart-card">
+                        <h3>⏰ Peak Hours Analysis</h3>
+                        <div style="position:relative;height:350px;width:100%;">
+                            <canvas id="peakHoursChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Risk Prediction -->
+                    <div class="chart-card" style="grid-column: span 2;">
+                        <h3>🔮 Risk Forecast (30 Minutes)</h3>
+                        <div style="position:relative;height:350px;width:100%;">
+                            <canvas id="riskForecastChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Anomalies Table -->
+                <div class="analytics-table">
+                    <h3>🚨 Recent Anomalies</h3>
+                    <table id="anomaliesTable">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>People Count</th>
+                                <th>Expected Range</th>
+                                <th>Z-Score</th>
+                                <th>Severity</th>
+                            </tr>
+                        </thead>
+                        <tbody id="anomaliesTableBody">
+                            <tr><td colspan="5" style="text-align:center;color:#888;">No anomalies detected in the selected period</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </main>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="analytics-force-init.js"></script>
+    <script src="analytics-service.js"></script>
+    <script src="analytics-charts.js"></script>
+    <script src="analytics-debug.js"></script>
     <script src="app.js"></script>
     <script src="main.js"></script>
+    <script>
+        // Force initialize analytics with demo data when page loads
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('🎯 DOM Loaded - Setting up analytics auto-init');
+            
+            // Wait for Chart.js to be ready
+            setTimeout(() => {
+                if (typeof Chart === 'undefined') {
+                    console.error('❌ Chart.js not loaded!');
+                    return;
+                }
+                
+                console.log('✅ Chart.js ready');
+                
+                // Add debug button
+                const debugBtn = document.getElementById('debugAnalytics');
+                if (debugBtn) {
+                    debugBtn.addEventListener('click', () => {
+                        console.log('=== ANALYTICS DEBUG ===');
+                        console.log('window.state:', window.state);
+                        console.log('window.state.metrics:', window.state?.metrics);
+                        console.log('Cameras:', window.state?.cameras?.length);
+                        console.log('Metrics keys:', window.state?.metrics ? Object.keys(window.state.metrics) : 'NONE');
+                        
+                        if (window.state?.metrics) {
+                            Object.keys(window.state.metrics).forEach(key => {
+                                console.log(`  ${key}:`, window.state.metrics[key]);
+                            });
+                        }
+                        
+                        console.log('analyticsChartsForced:', window.analyticsChartsForced);
+                        console.log('======================');
+                    });
+                }
+                
+                // Initialize demo charts immediately for testing
+                setTimeout(() => {
+                    const analyticsPage = document.getElementById('analytics');
+                    if (analyticsPage && analyticsPage.classList.contains('active')) {
+                        console.log('📊 Analytics page is active - initializing charts');
+                        if (window.AnalyticsCharts) {
+                            window.analyticsChartsInstance = new AnalyticsCharts();
+                            window.analyticsChartsInstance.initialize();
+                        }
+                    } else {
+                        console.log('⏳ Analytics page not active yet - will init on navigation');
+                    }
+                }, 1000);
+            }, 500);
+        });
+    </script>
 </body>
 </html>

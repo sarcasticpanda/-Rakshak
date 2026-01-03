@@ -200,14 +200,26 @@ class MetricsRepository:
             if start_time or end_time:
                 query["timestamp"] = {}
                 if start_time:
-                    query["timestamp"]["$gte"] = start_time.timestamp()
+                    # Support both datetime and Unix timestamp formats
+                    query["timestamp"]["$gte"] = start_time
                 if end_time:
-                    query["timestamp"]["$lte"] = end_time.timestamp()
+                    query["timestamp"]["$lte"] = end_time
             
             cursor = self.camera_metrics.find(query).sort("timestamp", -1).limit(limit)
-            return await cursor.to_list(length=limit)
+            results = await cursor.to_list(length=limit)
+            
+            # Convert MongoDB documents to JSON-serializable format
+            for doc in results:
+                doc.pop('_id', None)  # Remove MongoDB ObjectId
+                # Convert datetime to timestamp if needed
+                if isinstance(doc.get('timestamp'), datetime):
+                    doc['timestamp'] = doc['timestamp'].timestamp()
+            
+            return results
         except Exception as e:
             print(f"[MetricsRepository] Get camera history failed: {e}")
+            import traceback
+            traceback.print_exc()
             return []
     
     async def get_area_history(
@@ -224,14 +236,26 @@ class MetricsRepository:
             if start_time or end_time:
                 query["timestamp"] = {}
                 if start_time:
-                    query["timestamp"]["$gte"] = start_time.timestamp()
+                    # Support both datetime and Unix timestamp formats
+                    query["timestamp"]["$gte"] = start_time
                 if end_time:
-                    query["timestamp"]["$lte"] = end_time.timestamp()
+                    query["timestamp"]["$lte"] = end_time
             
             cursor = self.area_metrics.find(query).sort("timestamp", -1).limit(limit)
-            return await cursor.to_list(length=limit)
+            results = await cursor.to_list(length=limit)
+            
+            # Convert MongoDB documents to JSON-serializable format
+            for doc in results:
+                doc.pop('_id', None)  # Remove MongoDB ObjectId
+                # Convert datetime to timestamp if needed
+                if isinstance(doc.get('timestamp'), datetime):
+                    doc['timestamp'] = doc['timestamp'].timestamp()
+            
+            return results
         except Exception as e:
             print(f"[MetricsRepository] Get area history failed: {e}")
+            import traceback
+            traceback.print_exc()
             return []
     
     async def get_statistics(
@@ -249,7 +273,7 @@ class MetricsRepository:
                 pipeline = [
                     {"$match": {
                         "camera_id": camera_id,
-                        "timestamp": {"$gte": start_time.timestamp()}
+                        "timestamp": {"$gte": start_time}
                     }},
                     {"$group": {
                         "_id": None,
@@ -268,7 +292,7 @@ class MetricsRepository:
                 pipeline = [
                     {"$match": {
                         "area_id": area_id,
-                        "timestamp": {"$gte": start_time.timestamp()}
+                        "timestamp": {"$gte": start_time}
                     }},
                     {"$group": {
                         "_id": None,
@@ -291,4 +315,6 @@ class MetricsRepository:
             return results[0] if results else {}
         except Exception as e:
             print(f"[MetricsRepository] Get statistics failed: {e}")
+            import traceback
+            traceback.print_exc()
             return {}

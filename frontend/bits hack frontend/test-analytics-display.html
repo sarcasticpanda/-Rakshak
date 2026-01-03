@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics Display Test</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            padding: 20px;
+            background: #0d1011;
+        }
+        .test-header {
+            background: #1f2526;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border: 1px solid #00ffcc;
+        }
+        .test-status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 6px;
+            font-family: monospace;
+        }
+        .test-pass {
+            background: rgba(0, 255, 204, 0.1);
+            border: 1px solid #00ffcc;
+            color: #00ffcc;
+        }
+        .test-fail {
+            background: rgba(255, 68, 68, 0.1);
+            border: 1px solid #ff4444;
+            color: #ff4444;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-header">
+        <h1 style="color: #00ffcc;">📊 Analytics Charts Display Test</h1>
+        <p style="color: #aaa;">Testing if analytics charts render correctly</p>
+        <div id="testResults"></div>
+    </div>
+
+    <!-- Analytics Controls -->
+    <div class="analytics-controls">
+        <select id="analyticsEntityType">
+            <option value="area">Area</option>
+            <option value="camera">Camera</option>
+        </select>
+        <select id="analyticsEntityId">
+            <option value="test_cam_1">Test Camera 1</option>
+            <option value="test_cam_2">Test Camera 2</option>
+        </select>
+        <select id="analyticsTimeRange">
+            <option value="1">Last 1 Hour</option>
+            <option value="6">Last 6 Hours</option>
+            <option value="24" selected>Last 24 Hours</option>
+            <option value="168">Last 7 Days</option>
+        </select>
+        <button id="analyticsRefresh">Refresh</button>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="analytics-summary">
+        <div class="summary-card">
+            <h3>Current Trend</h3>
+            <div class="trend-indicator" id="trendIndicator">
+                <span class="trend-icon">↑</span>
+                <span class="trend-text">RISING</span>
+            </div>
+            <p class="trend-detail" id="trendDetail">+5.2% per hour</p>
+        </div>
+
+        <div class="summary-card">
+            <h3>30-Min Forecast</h3>
+            <div class="forecast-value" id="forecastValue">58</div>
+            <p class="forecast-confidence" id="forecastConfidence">Confidence: 82%</p>
+        </div>
+
+        <div class="summary-card">
+            <h3>Peak Hour Today</h3>
+            <div class="peak-hour" id="peakHour">14:30</div>
+            <p id="peakHourDetail">Avg: 72 people</p>
+        </div>
+
+        <div class="summary-card">
+            <h3>Anomalies Detected</h3>
+            <div class="anomaly-count" id="anomalyCount">2</div>
+            <p id="anomalyDetail">2 extreme events</p>
+        </div>
+    </div>
+
+    <!-- Main Charts -->
+    <div class="analytics-charts">
+        <!-- Historical Trend Chart -->
+        <div class="chart-card">
+            <h3>Visitor Trend & Risk</h3>
+            <canvas id="trendChart"></canvas>
+        </div>
+
+        <!-- Peak Hours Heatmap -->
+        <div class="chart-card">
+            <h3>Peak Hours Analysis</h3>
+            <canvas id="peakHoursChart"></canvas>
+        </div>
+
+        <!-- Risk Prediction -->
+        <div class="chart-card" style="grid-column: span 2;">
+            <h3>Risk Forecast (30 Minutes)</h3>
+            <canvas id="riskForecastChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Anomalies Table -->
+    <div class="analytics-table">
+        <h3>Recent Anomalies</h3>
+        <table id="anomaliesTable">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>People Count</th>
+                    <th>Expected Range</th>
+                    <th>Z-Score</th>
+                    <th>Severity</th>
+                </tr>
+            </thead>
+            <tbody id="anomaliesTableBody">
+                <tr><td colspan="5" style="text-align:center;color:#888;">Loading test data...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Test Results
+        const testResults = document.getElementById('testResults');
+        
+        function addTestResult(name, passed, message) {
+            const div = document.createElement('div');
+            div.className = `test-status ${passed ? 'test-pass' : 'test-fail'}`;
+            div.innerHTML = `<strong>${passed ? '✅' : '❌'} ${name}:</strong> ${message}`;
+            testResults.appendChild(div);
+        }
+
+        // Run Tests
+        setTimeout(() => {
+            console.log('=== ANALYTICS DISPLAY TEST ===');
+            
+            // Test 1: Chart.js loaded
+            const chartjsLoaded = typeof Chart !== 'undefined';
+            addTestResult('Chart.js', chartjsLoaded, chartjsLoaded ? 'Loaded successfully' : 'NOT LOADED');
+            
+            // Test 2: Canvas elements exist
+            const trendCanvas = document.getElementById('trendChart');
+            const peakCanvas = document.getElementById('peakHoursChart');
+            const riskCanvas = document.getElementById('riskForecastChart');
+            
+            addTestResult('Trend Chart Canvas', !!trendCanvas, trendCanvas ? 'Found in DOM' : 'MISSING');
+            addTestResult('Peak Hours Canvas', !!peakCanvas, peakCanvas ? 'Found in DOM' : 'MISSING');
+            addTestResult('Risk Forecast Canvas', !!riskCanvas, riskCanvas ? 'Found in DOM' : 'MISSING');
+            
+            // Test 3: Canvas dimensions
+            if (trendCanvas) {
+                const rect = trendCanvas.getBoundingClientRect();
+                addTestResult('Canvas Dimensions', rect.width > 0 && rect.height > 0, 
+                    `Width: ${rect.width}px, Height: ${rect.height}px`);
+            }
+            
+            // Test 4: Create actual charts with test data
+            if (chartjsLoaded && trendCanvas && peakCanvas && riskCanvas) {
+                try {
+                    // Generate test data
+                    const hours = Array.from({length: 24}, (_, i) => `${String(i).padStart(2, '0')}:00`);
+                    const peopleData = Array.from({length: 24}, () => Math.floor(Math.random() * 80) + 20);
+                    const riskData = Array.from({length: 24}, () => Math.floor(Math.random() * 100));
+                    
+                    // 1. Trend Chart (Line)
+                    new Chart(trendCanvas, {
+                        type: 'line',
+                        data: {
+                            labels: hours,
+                            datasets: [{
+                                label: 'People Count',
+                                data: peopleData,
+                                borderColor: '#00ffcc',
+                                backgroundColor: 'rgba(0, 255, 204, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            }, {
+                                label: 'Risk Score',
+                                data: riskData,
+                                borderColor: '#ff4444',
+                                backgroundColor: 'rgba(255, 68, 68, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { labels: { color: '#fff' } }
+                            },
+                            scales: {
+                                y: { 
+                                    beginAtZero: true,
+                                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                                    ticks: { color: '#fff' }
+                                },
+                                x: {
+                                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                                    ticks: { color: '#fff', maxTicksLimit: 12 }
+                                }
+                            }
+                        }
+                    });
+                    
+                    // 2. Peak Hours Chart (Bar)
+                    const peakHoursData = Array.from({length: 24}, () => Math.floor(Math.random() * 100) + 20);
+                    new Chart(peakCanvas, {
+                        type: 'bar',
+                        data: {
+                            labels: hours,
+                            datasets: [{
+                                label: 'Avg People/Hour',
+                                data: peakHoursData,
+                                backgroundColor: 'rgba(0, 255, 204, 0.6)',
+                                borderColor: '#00ffcc',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { labels: { color: '#fff' } }
+                            },
+                            scales: {
+                                y: { 
+                                    beginAtZero: true,
+                                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                                    ticks: { color: '#fff' }
+                                },
+                                x: {
+                                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                                    ticks: { color: '#fff', maxTicksLimit: 12 }
+                                }
+                            }
+                        }
+                    });
+                    
+                    // 3. Risk Forecast Chart (Line with prediction)
+                    const forecastLabels = ['T-10', 'T-8', 'T-6', 'T-4', 'T-2', 'Now', 'T+10', 'T+20', 'T+30'];
+                    const historicalRisk = [45, 52, 48, 55, 60, 65];
+                    const forecastRisk = [null, null, null, null, null, 65, 68, 72, 75];
+                    
+                    new Chart(riskCanvas, {
+                        type: 'line',
+                        data: {
+                            labels: forecastLabels,
+                            datasets: [{
+                                label: 'Historical Risk',
+                                data: [...historicalRisk, ...Array(3).fill(null)],
+                                borderColor: '#ffaa00',
+                                backgroundColor: 'rgba(255, 170, 0, 0.1)',
+                                tension: 0.4,
+                                fill: false
+                            }, {
+                                label: 'Predicted Risk',
+                                data: forecastRisk,
+                                borderColor: '#ff4444',
+                                backgroundColor: 'rgba(255, 68, 68, 0.1)',
+                                borderDash: [5, 5],
+                                tension: 0.4,
+                                fill: false
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { labels: { color: '#fff' } }
+                            },
+                            scales: {
+                                y: { 
+                                    beginAtZero: true,
+                                    max: 100,
+                                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                                    ticks: { color: '#fff' }
+                                },
+                                x: {
+                                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                                    ticks: { color: '#fff' }
+                                }
+                            }
+                        }
+                    });
+                    
+                    addTestResult('Chart Rendering', true, 'All 3 charts created successfully');
+                    
+                    // Populate anomalies table
+                    const tbody = document.getElementById('anomaliesTableBody');
+                    tbody.innerHTML = `
+                        <tr class="severity-extreme">
+                            <td>${new Date().toLocaleString()}</td>
+                            <td>95</td>
+                            <td>55 ± 20%</td>
+                            <td>3.2</td>
+                            <td><span class="badge extreme">EXTREME</span></td>
+                        </tr>
+                        <tr class="severity-high">
+                            <td>${new Date(Date.now() - 3600000).toLocaleString()}</td>
+                            <td>78</td>
+                            <td>50 ± 20%</td>
+                            <td>2.1</td>
+                            <td><span class="badge high">HIGH</span></td>
+                        </tr>
+                    `;
+                    
+                } catch (error) {
+                    addTestResult('Chart Rendering', false, `ERROR: ${error.message}`);
+                    console.error('Chart creation error:', error);
+                }
+            }
+            
+            console.log('=== TEST COMPLETE ===');
+        }, 500);
+    </script>
+</body>
+</html>

@@ -40,22 +40,30 @@ class TrendAnalyzer:
         # Fetch hourly aggregates
         collection_name = f"{entity_type}_metrics_hourly"
         collection = db[collection_name]
-        
+
         end_time = datetime.utcnow()
         start_time = end_time - timedelta(hours=period_hours)
-        
+
         field_name = f"{entity_type}_id"
+        # Support both 'hour' (from injector) and 'hour_start' (from aggregator)
         cursor = collection.find({
             field_name: entity_id,
-            'hour_start': {'$gte': start_time, '$lte': end_time}
-        }).sort('hour_start', 1)
-        
+            '$or': [
+                {'hour_start': {'$gte': start_time, '$lte': end_time}},
+                {'hour': {'$gte': start_time, '$lte': end_time}}
+            ]
+        })
+
         data = []
         async for doc in cursor:
-            data.append({
-                'hour': doc['hour_start'],
-                'avg_people': doc['avg_people']
-            })
+            # Support both field names and both avg fields
+            hour_time = doc.get('hour_start') or doc.get('hour')
+            avg_people = doc.get('avg_people') or doc.get('avg_people_count')
+            if hour_time is not None and avg_people is not None:
+                data.append({
+                    'hour': hour_time,
+                    'avg_people': avg_people
+                })
         
         if len(data) < 2:
             return {

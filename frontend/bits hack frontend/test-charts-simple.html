@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics Charts - Direct Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #0d1011;
+            color: #fff;
+            font-family: system-ui;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #00ffcc;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .chart-box {
+            background: #1f2526;
+            padding: 20px;
+            border-radius: 12px;
+            border: 2px solid #00ffcc;
+        }
+        
+        .chart-box h3 {
+            color: #00ffcc;
+            margin: 0 0 15px 0;
+        }
+        
+        .chart-wrapper {
+            position: relative;
+            height: 400px;
+            width: 100%;
+        }
+        
+        canvas {
+            display: block !important;
+            width: 100% !important;
+            height: 100% !important;
+        }
+        
+        .status {
+            background: #1f2526;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #00ffcc;
+        }
+        
+        .btn {
+            background: #00ffcc;
+            color: #0d1011;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 0 10px 10px 0;
+        }
+        
+        .btn:hover {
+            background: #00ffee;
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Analytics Charts - Direct Test</h1>
+        
+        <div class="status" id="status">
+            <strong>Status:</strong> Loading...
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+            <button class="btn" onclick="createCharts()">🔄 Create Charts</button>
+            <button class="btn" onclick="destroyCharts()">🗑️ Destroy Charts</button>
+            <button class="btn" onclick="checkStatus()">🔍 Check Status</button>
+        </div>
+        
+        <div class="chart-grid">
+            <div class="chart-box">
+                <h3>📈 Visitor Trend & Risk</h3>
+                <div class="chart-wrapper">
+                    <canvas id="chart1"></canvas>
+                </div>
+            </div>
+            
+            <div class="chart-box">
+                <h3>⏰ Peak Hours Analysis</h3>
+                <div class="chart-wrapper">
+                    <canvas id="chart2"></canvas>
+                </div>
+            </div>
+            
+            <div class="chart-box" style="grid-column: span 2;">
+                <h3>🔮 Risk Forecast</h3>
+                <div class="chart-wrapper">
+                    <canvas id="chart3"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let charts = {};
+        
+        function updateStatus(msg, color = '#00ffcc') {
+            const status = document.getElementById('status');
+            status.innerHTML = `<strong style="color:${color}">Status:</strong> ${msg}`;
+            console.log(msg);
+        }
+        
+        function checkStatus() {
+            const canvas1 = document.getElementById('chart1');
+            const canvas2 = document.getElementById('chart2');
+            const canvas3 = document.getElementById('chart3');
+            
+            console.log('=== STATUS CHECK ===');
+            console.log('Chart.js loaded:', typeof Chart !== 'undefined');
+            console.log('Canvas 1:', canvas1, 'Dimensions:', canvas1?.width, 'x', canvas1?.height);
+            console.log('Canvas 2:', canvas2, 'Dimensions:', canvas2?.width, 'x', canvas2?.height);
+            console.log('Canvas 3:', canvas3, 'Dimensions:', canvas3?.width, 'x', canvas3?.height);
+            console.log('Charts created:', Object.keys(charts));
+            
+            updateStatus(`Chart.js: ${typeof Chart !== 'undefined' ? '✅' : '❌'} | Charts: ${Object.keys(charts).length}`);
+        }
+        
+        function destroyCharts() {
+            Object.values(charts).forEach(chart => chart.destroy());
+            charts = {};
+            updateStatus('Charts destroyed', '#ffaa00');
+        }
+        
+        function createCharts() {
+            updateStatus('Creating charts...', '#ffaa00');
+            
+            // Destroy existing
+            destroyCharts();
+            
+            try {
+                // Generate data
+                const hours = Array.from({length: 24}, (_, i) => `${String(i).padStart(2, '0')}:00`);
+                const peopleData = [];
+                const riskData = [];
+                
+                for (let i = 0; i < 24; i++) {
+                    let people = 20;
+                    if (i >= 8 && i < 10) people = 60;
+                    if (i >= 12 && i < 14) people = 75;
+                    if (i >= 17 && i < 19) people = 65;
+                    if (i >= 0 && i < 6) people = 5;
+                    
+                    peopleData.push(Math.floor(people + Math.random() * 15));
+                    riskData.push(Math.min(95, Math.floor(people * 1.1 + Math.random() * 15)));
+                }
+                
+                // Chart 1: Trend
+                console.log('Creating Chart 1...');
+                charts.trend = new Chart(document.getElementById('chart1'), {
+                    type: 'line',
+                    data: {
+                        labels: hours,
+                        datasets: [{
+                            label: 'People Count',
+                            data: peopleData,
+                            borderColor: '#00ffcc',
+                            backgroundColor: 'rgba(0, 255, 204, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            borderWidth: 3
+                        }, {
+                            label: 'Risk Score',
+                            data: riskData,
+                            borderColor: '#ff4444',
+                            backgroundColor: 'rgba(255, 68, 68, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            borderWidth: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                labels: { color: '#fff', font: { size: 14 } }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: 'rgba(255,255,255,0.1)' },
+                                ticks: { color: '#fff' }
+                            },
+                            x: {
+                                grid: { color: 'rgba(255,255,255,0.05)' },
+                                ticks: { color: '#fff', maxTicksLimit: 12 }
+                            }
+                        }
+                    }
+                });
+                console.log('✅ Chart 1 created');
+                
+                // Chart 2: Peak Hours
+                console.log('Creating Chart 2...');
+                const peakData = hours.map(() => Math.floor(Math.random() * 70) + 20);
+                charts.peak = new Chart(document.getElementById('chart2'), {
+                    type: 'bar',
+                    data: {
+                        labels: hours,
+                        datasets: [{
+                            label: 'People per Hour',
+                            data: peakData,
+                            backgroundColor: 'rgba(0, 255, 204, 0.6)',
+                            borderColor: '#00ffcc',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                labels: { color: '#fff', font: { size: 14 } }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: 'rgba(255,255,255,0.1)' },
+                                ticks: { color: '#fff' }
+                            },
+                            x: {
+                                grid: { display: false },
+                                ticks: { color: '#fff', maxTicksLimit: 12 }
+                            }
+                        }
+                    }
+                });
+                console.log('✅ Chart 2 created');
+                
+                // Chart 3: Forecast
+                console.log('Creating Chart 3...');
+                const forecastLabels = ['T-10', 'T-8', 'T-6', 'T-4', 'T-2', 'Now', 'T+10', 'T+20', 'T+30'];
+                charts.forecast = new Chart(document.getElementById('chart3'), {
+                    type: 'line',
+                    data: {
+                        labels: forecastLabels,
+                        datasets: [{
+                            label: 'Risk Score',
+                            data: [45, 52, 48, 55, 60, 65, 68, 72, 75],
+                            borderColor: '#ffaa00',
+                            backgroundColor: 'rgba(255, 170, 0, 0.1)',
+                            tension: 0.4,
+                            fill: false,
+                            borderWidth: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                labels: { color: '#fff', font: { size: 14 } }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                grid: { color: 'rgba(255,255,255,0.1)' },
+                                ticks: { color: '#fff' }
+                            },
+                            x: {
+                                grid: { color: 'rgba(255,255,255,0.05)' },
+                                ticks: { color: '#fff' }
+                            }
+                        }
+                    }
+                });
+                console.log('✅ Chart 3 created');
+                
+                updateStatus('✅ All 3 charts created successfully!', '#00ff88');
+                
+            } catch (error) {
+                console.error('Error:', error);
+                updateStatus(`❌ Error: ${error.message}`, '#ff4444');
+            }
+        }
+        
+        // Auto-create on load
+        window.addEventListener('load', () => {
+            console.log('Page loaded, Chart.js:', typeof Chart);
+            setTimeout(() => {
+                if (typeof Chart !== 'undefined') {
+                    updateStatus('Chart.js loaded, creating charts...', '#ffaa00');
+                    setTimeout(createCharts, 500);
+                } else {
+                    updateStatus('❌ Chart.js not loaded!', '#ff4444');
+                }
+            }, 100);
+        });
+    </script>
+</body>
+</html>

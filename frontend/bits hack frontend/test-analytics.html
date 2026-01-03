@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics Test</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div style="padding: 20px; background: #1a1c24; min-height: 100vh; color: white;">
+        <h1>Analytics Test Page</h1>
+        <div id="console-output" style="background: #0a0c14; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 12px; margin: 20px 0;">
+            <div style="color: #00ffcc;">Console Output:</div>
+        </div>
+        
+        <div style="margin: 20px 0;">
+            <h2>Summary Cards Test</h2>
+            <div class="analytics-summary">
+                <div class="summary-card">
+                    <h3>Current Trend</h3>
+                    <div class="trend-indicator" id="trendIndicator">
+                        <span class="trend-icon">→</span>
+                        <span class="trend-text">STABLE</span>
+                    </div>
+                    <p class="trend-detail" id="trendDetail">+2.5% per day</p>
+                </div>
+
+                <div class="summary-card">
+                    <h3>30-Min Forecast</h3>
+                    <div class="forecast-value" id="forecastValue">42</div>
+                    <p class="forecast-confidence" id="forecastConfidence">Confidence: 75%</p>
+                </div>
+
+                <div class="summary-card">
+                    <h3>Peak Hour Today</h3>
+                    <div class="peak-hour" id="peakHour">13:00</div>
+                    <p id="peakHourDetail">Avg: 65 people</p>
+                </div>
+
+                <div class="summary-card">
+                    <h3>Anomalies Detected</h3>
+                    <div class="anomaly-count" id="anomalyCount">0</div>
+                    <p id="anomalyDetail">No anomalies detected</p>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin: 20px 0;">
+            <h2>Charts Test</h2>
+            <div class="analytics-charts">
+                <div class="chart-card">
+                    <h3>Visitor Trend & Risk</h3>
+                    <canvas id="trendChart"></canvas>
+                </div>
+
+                <div class="chart-card">
+                    <h3>Peak Hours Analysis</h3>
+                    <canvas id="peakHoursChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <button onclick="testAnalytics()" style="padding: 12px 24px; background: #00ffcc; color: #000; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin: 20px 0;">
+            Run Analytics Test
+        </button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const consoleOutput = document.getElementById('console-output');
+        
+        function log(message, color = '#00ffcc') {
+            const div = document.createElement('div');
+            div.style.color = color;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            consoleOutput.appendChild(div);
+            console.log(message);
+        }
+
+        // Mock state object
+        window.state = {
+            metrics: {
+                'cam_stampede': { people: 350, risk_score: 100, risk_level: 'CRITICAL' },
+                'cam_test2': { people: 49, risk_score: 40, risk_level: 'NORMAL' },
+                'cam_test3': { people: 119, risk_score: 43, risk_level: 'WARNING' }
+            }
+        };
+
+        function testAnalytics() {
+            log('Starting analytics test...', '#ffaa00');
+            
+            // Check Chart.js
+            if (typeof Chart !== 'undefined') {
+                log('✓ Chart.js loaded', '#00ff88');
+            } else {
+                log('✗ Chart.js NOT loaded', '#ff4444');
+                return;
+            }
+
+            // Check state
+            if (window.state && window.state.metrics) {
+                log('✓ State.metrics exists: ' + Object.keys(window.state.metrics).join(', '), '#00ff88');
+            } else {
+                log('✗ State.metrics NOT found', '#ff4444');
+            }
+
+            // Test demo data generation
+            log('Generating demo trend data...', '#ffaa00');
+            const demoData = generateDemoTrendData();
+            log('✓ Generated ' + demoData.metrics.length + ' data points', '#00ff88');
+
+            // Render trend chart
+            log('Rendering trend chart...', '#ffaa00');
+            renderTrendChart(demoData);
+            log('✓ Trend chart rendered', '#00ff88');
+
+            // Render peak hours chart
+            log('Rendering peak hours chart...', '#ffaa00');
+            const peakData = generateDemoPeakHoursData();
+            renderPeakHoursChart(peakData);
+            log('✓ Peak hours chart rendered', '#00ff88');
+
+            // Update summary cards
+            log('Updating summary cards...', '#ffaa00');
+            document.getElementById('trendIndicator').querySelector('.trend-icon').textContent = '↑';
+            document.getElementById('trendIndicator').querySelector('.trend-text').textContent = 'INCREASING';
+            document.getElementById('trendDetail').textContent = '+5.2% per day';
+            document.getElementById('forecastValue').textContent = '55';
+            document.getElementById('forecastConfidence').textContent = 'Confidence: 82%';
+            document.getElementById('peakHour').textContent = '13:00';
+            document.getElementById('peakHourDetail').textContent = 'Avg: 72 people';
+            log('✓ Summary cards updated', '#00ff88');
+
+            log('Analytics test complete!', '#00ffcc');
+        }
+
+        function generateDemoTrendData() {
+            const metrics = [];
+            const now = new Date();
+            
+            for (let i = 60; i >= 0; i--) {
+                const timestamp = new Date(now.getTime() - i * 60 * 1000);
+                const hour = timestamp.getHours();
+                
+                let basePeople = 25;
+                if (hour >= 9 && hour < 12) basePeople = 55;
+                else if (hour >= 12 && hour < 14) basePeople = 70;
+                else if (hour >= 17 && hour < 19) basePeople = 60;
+                
+                const variance = Math.sin(i * 0.1) * 10 + Math.random() * 10;
+                const people_count = Math.max(0, basePeople + variance);
+                const risk_score = Math.min(90, people_count * 1.1 + Math.random() * 15);
+                
+                metrics.push({
+                    timestamp: Math.floor(timestamp.getTime() / 1000),
+                    people_count: Math.floor(people_count),
+                    risk_score: risk_score
+                });
+            }
+            
+            return { metrics: metrics };
+        }
+
+        function generateDemoPeakHoursData() {
+            const avg_by_hour = {};
+            
+            for (let hour = 0; hour < 24; hour++) {
+                let avgPeople = 15;
+                if (hour >= 9 && hour < 12) avgPeople = 60;
+                else if (hour >= 12 && hour < 14) avgPeople = 70;
+                else if (hour >= 17 && hour < 19) avgPeople = 58;
+                
+                avg_by_hour[hour] = avgPeople + Math.floor(Math.random() * 10);
+            }
+            
+            return {
+                peak_hours: [9, 13, 18],
+                avg_by_hour: avg_by_hour
+            };
+        }
+
+        function renderTrendChart(history) {
+            const ctx = document.getElementById('trendChart');
+            const metrics = history.metrics || [];
+            
+            const labels = metrics.map(m => {
+                const date = new Date(m.timestamp * 1000);
+                return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            });
+            
+            const peopleData = metrics.map(m => m.people_count);
+            const riskData = metrics.map(m => m.risk_score);
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'People Count',
+                            data: peopleData,
+                            borderColor: '#00ffcc',
+                            backgroundColor: 'rgba(0, 255, 204, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Risk Score',
+                            data: riskData,
+                            borderColor: '#ff4444',
+                            backgroundColor: 'rgba(255, 68, 68, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: { color: 'rgba(255, 255, 255, 0.8)' }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: 'rgba(255, 255, 255, 0.7)' },
+                            title: { display: true, text: 'People Count', color: '#00ffcc' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            beginAtZero: true,
+                            max: 100,
+                            grid: { drawOnChartArea: false },
+                            ticks: { color: 'rgba(255, 255, 255, 0.7)' },
+                            title: { display: true, text: 'Risk Score', color: '#ff4444' }
+                        },
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: 'rgba(255, 255, 255, 0.7)', maxTicksLimit: 12 }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderPeakHoursChart(patterns) {
+            const ctx = document.getElementById('peakHoursChart');
+            const avgByHour = patterns.avg_by_hour || {};
+            const hours = Object.keys(avgByHour).sort((a, b) => parseInt(a) - parseInt(b));
+            const values = hours.map(h => avgByHour[h]);
+            const peakHours = patterns.peak_hours || [];
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: hours.map(h => `${h}:00`),
+                    datasets: [{
+                        label: 'Avg People',
+                        data: values,
+                        backgroundColor: hours.map(h => 
+                            peakHours.includes(parseInt(h)) ? '#ff4444' : '#00ffcc'
+                        ),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: { color: 'rgba(255, 255, 255, 0.7)' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: 'rgba(255, 255, 255, 0.7)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Auto-run test on page load
+        window.addEventListener('load', () => {
+            log('Page loaded, waiting 1 second...', '#ffaa00');
+            setTimeout(() => {
+                testAnalytics();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

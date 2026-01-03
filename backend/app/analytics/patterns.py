@@ -30,28 +30,35 @@ class PatternDetector:
         
         collection_name = f"{entity_type}_metrics_hourly"
         collection = db[collection_name]
-        
+
         end_time = datetime.utcnow()
         start_time = end_time - timedelta(days=days)
-        
+
         field_name = f"{entity_type}_id"
+        # Query for both possible time fields
         cursor = collection.find({
             field_name: entity_id,
-            'hour_start': {'$gte': start_time, '$lte': end_time}
+            '$or': [
+                {'hour_start': {'$gte': start_time, '$lte': end_time}},
+                {'hour': {'$gte': start_time, '$lte': end_time}}
+            ]
         })
-        
+
         # Collect data
         by_hour = defaultdict(list)  # hour-of-day -> [people counts]
         by_day = defaultdict(list)   # day-of-week -> [people counts]
         all_values = []
-        
+
         async for doc in cursor:
-            hour_start = doc['hour_start']
-            avg_people = doc['avg_people']
-            
+            # Use whichever field is present
+            hour_start = doc.get('hour_start') or doc.get('hour')
+            if not hour_start:
+                continue
+            avg_people = doc.get('avg_people') or doc.get('avg_people_count')
+
             hour_of_day = hour_start.hour
             day_of_week = hour_start.strftime('%A')
-            
+
             by_hour[hour_of_day].append(avg_people)
             by_day[day_of_week].append(avg_people)
             all_values.append(avg_people)

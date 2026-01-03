@@ -30,22 +30,29 @@ class AnomalyDetector:
         
         collection_name = f"{entity_type}_metrics_hourly"
         collection = db[collection_name]
-        
+
         end_time = datetime.utcnow()
         start_time = end_time - timedelta(hours=window_hours)
-        
+
         field_name = f"{entity_type}_id"
+        # Support both 'hour_start' and 'hour' fields
         cursor = collection.find({
             field_name: entity_id,
-            'hour_start': {'$gte': start_time, '$lte': end_time}
-        }).sort('hour_start', 1)
-        
+            '$or': [
+                {'hour_start': {'$gte': start_time, '$lte': end_time}},
+                {'hour': {'$gte': start_time, '$lte': end_time}}
+            ]
+        })
+
         data = []
         async for doc in cursor:
-            data.append({
-                'timestamp': doc['hour_start'],
-                'people': doc['avg_people']
-            })
+            hour_time = doc.get('hour_start') or doc.get('hour')
+            avg_people = doc.get('avg_people') or doc.get('avg_people_count')
+            if hour_time is not None and avg_people is not None:
+                data.append({
+                    'timestamp': hour_time,
+                    'people': avg_people
+                })
         
         if len(data) < 3:
             return {"error": "Insufficient data (need at least 3 hours)"}

@@ -20,6 +20,32 @@ function navigateToPage(pageId) {
         if (pageId === 'dashboard') {
             resetDashboardToOverview();
         }
+        
+        // Initialize analytics when user navigates to Analytics tab
+        if (pageId === 'analytics') {
+            console.log('[Navigation] User navigated to Analytics tab');
+            
+            // Give the page time to become visible
+            setTimeout(() => {
+                // Try force-init first (from analytics-force-init.js)
+                if (window.analyticsChartsForced) {
+                    console.log('[Navigation] Charts already initialized by force-init');
+                    return;
+                }
+                
+                // Fallback to regular initialization
+                if (window.analyticsChartsInstance && window.analyticsChartsInstance.initialize) {
+                    console.log('[Navigation] Re-initializing analytics with current data');
+                    window.analyticsChartsInstance.initialize();
+                } else if (window.AnalyticsCharts) {
+                    console.log('[Navigation] Creating new analytics instance');
+                    window.analyticsChartsInstance = new AnalyticsCharts();
+                    window.analyticsChartsInstance.initialize();
+                } else {
+                    console.warn('[Navigation] AnalyticsCharts class not loaded yet');
+                }
+            }, 100);
+        }
     }
 }
 

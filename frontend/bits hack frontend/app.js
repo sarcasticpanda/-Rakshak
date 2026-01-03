@@ -7,8 +7,8 @@
 const API_BASE = 'http://localhost:8000';
 const WS_URL = 'ws://localhost:8000/ws/metrics';
 
-// State Management
-const state = {
+// State Management - EXPOSE TO WINDOW FOR ANALYTICS
+window.state = {
     cameras: [],
     areas: [],
     selectedCamera: null,
@@ -19,6 +19,9 @@ const state = {
     maxReconnectAttempts: Infinity,  // CRITICAL FIX: Unlimited reconnection attempts
     fallbackPolling: null  // CRITICAL FIX: Fallback polling interval when WebSocket fails
 };
+
+// Alias for internal use
+const state = window.state;
 
 // Initialize on load
 document.addEventListener('DOMContentLoaded', () => {
@@ -87,6 +90,12 @@ async function initializeApp() {
             updateCameraManagement();
         });
         
+        // Setup IP Webcam helper
+        setupIPWebcamHelper();
+        
+        // Initialize Analytics Dashboard
+        initializeAnalyticsDashboard();
+        
         // Wire up alert filter buttons
         const alertFilterBtns = document.querySelectorAll('.alert-filters .filter-btn');
         alertFilterBtns.forEach(btn => {
@@ -104,6 +113,31 @@ async function initializeApp() {
         console.error('❌ Initialization failed:', error);
         showError('Failed to connect to backend. Is the server running at ' + API_BASE + '?');
     }
+}
+
+// ============================================
+// ANALYTICS DASHBOARD INITIALIZATION
+// ============================================
+function initializeAnalyticsDashboard() {
+    console.log('📊 Initializing Analytics Dashboard...');
+    
+    // Check if analytics page exists
+    const analyticsPage = document.getElementById('analytics');
+    if (!analyticsPage) {
+        console.warn('Analytics page not found in DOM');
+        return;
+    }
+    
+    // Delay initialization to ensure state is populated
+    setTimeout(() => {
+        if (window.AnalyticsCharts && state.metrics && Object.keys(state.metrics).length > 0) {
+            window.analyticsChartsInstance = new AnalyticsCharts();
+            window.analyticsChartsInstance.initialize();
+            console.log('[Analytics] Dashboard initialized with metrics:', Object.keys(state.metrics));
+        } else {
+            console.warn('[Analytics] No metrics data available or AnalyticsCharts class not loaded');
+        }
+    }, 3000); // 3 second delay to ensure metrics are loaded
 }
 
 // ============================================
@@ -135,6 +169,10 @@ async function loadCameras() {
                 console.log(`  ⚠️ ${cam.camera_id}: No metrics yet`);
             }
         });
+        
+        // Expose to window for analytics
+        window.state = state;
+        console.log('📊 State.metrics exposed to window:', Object.keys(state.metrics));
     } catch (error) {
         console.error('❌ Failed to load cameras:', error.message);
         console.error('   Is backend running at:', API_BASE);
@@ -1166,13 +1204,49 @@ function hideClearSelectionButton() {
     if (btn) btn.style.display = 'none';
 }
 
-// Export for main.js compatibility
-window.rakshakApp = {
-    state,
-    loadCameras,
-    loadAreas,
-    updateDashboard,
-    updateCameraFeeds,
-    selectCamera,
-    clearCameraSelection
-};
+// ============================================
+// IP WEBCAM HELPER
+// ============================================
+function setupIPWebcamHelper() {
+    const sourceTypeSelect = document.getElementById('source_type');
+    const ipWebcamHelper = document.getElementById('ip_webcam_helper');
+    const sourceInput = document.getElementById('new_camera_source');
+    const sourceHint = document.getElementById('source_hint');
+    const useExampleIPBtn = document.getElementById('useExampleIP');
+    
+    if (!sourceTypeSelect || !ipWebcamHelper || !sourceInput || !sourceHint) return;
+    
+    // Source type change handler
+    sourceTypeSelect.addEventListener('change', function() {
+        const type = this.value;
+        
+        // Show/hide IP webcam helper
+        if (type === 'ip_webcam') {
+            ipWebcamHelper.style.display = 'block';
+            sourceInput.placeholder = 'http://192.168.1.100:8080/video';
+            sourceHint.textContent = 'Example: http://192.168.1.100:8080/video';
+        } else {
+            ipWebcamHelper.style.display = 'none';
+            
+            if (type === 'video') {
+                sourceInput.placeholder = '../check_vids/video.mp4';
+                sourceHint.textContent = 'Example: ../check_vids/video.mp4 or /absolute/path/video.mp4';
+            } else if (type === 'rtsp') {
+                sourceInput.placeholder = 'rtsp://username:password@192.168.1.100:554/stream';
+                sourceHint.textContent = 'Example: rtsp://admin:password@192.168.1.100:554/stream1';
+            } else if (type === 'webcam') {
+                sourceInput.placeholder = '0';
+                sourceHint.textContent = 'Enter 0 for default webcam, 1 for second webcam, etc.';
+            }
+        }
+    });
+    
+    // Use example IP button
+    if (useExampleIPBtn) {
+        useExampleIPBtn.addEventListener('click', function() {
+            sourceInput.value = 'http://192.168.1.100:8080/video';
+            sourceInput.focus();
+        });
+    }
+}
+
