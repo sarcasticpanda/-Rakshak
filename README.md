@@ -230,7 +230,7 @@ Stampede Rakshak provides a comprehensive approach to crowd safety by combining 
    uvicorn app.main:app --reload
    ```
 4. **Open the frontend dashboard:**
-   - Open `frontend/bits hack frontend/index.html` in your browser.
+   - Open `frontend/complete_frontend/index.html` in your browser.
 
 ---
 
