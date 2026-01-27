@@ -218,7 +218,7 @@ Stampede Rakshak provides a comprehensive approach to crowd safety by combining 
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/your-org/stampede-rakshak.git
+   git clone git clone https://github.com/sarcasticpanda/-Rakshak.git
    ```
 2. **Install backend dependencies:**
    ```bash
