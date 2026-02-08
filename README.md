@@ -124,7 +124,7 @@ Analytics queries operate on aggregated data to ensure scalability and performan
 
 ---
 
-## System Architecture
+## System Architecture-
 
 ### Processing Pipeline
 
